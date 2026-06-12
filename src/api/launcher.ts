@@ -1,10 +1,14 @@
 /**
  * launcher.ts
- * Cliente para el servicio portal-launcher (http://localhost:4999).
- * El launcher levanta el backend y frontend de cada app bajo demanda.
+ * Cliente para el servicio portal-launcher.
+ * Host y puerto se leen del .env raíz del portal:
+ *   VITE_HOST          → hostname/IP del servidor  (default: localhost)
+ *   VITE_LAUNCHER_PORT → puerto del launcher Flask  (default: 4999)
  */
 
-const LAUNCHER = 'http://localhost:4999'
+const _H  = import.meta.env.VITE_HOST          ?? 'localhost'
+const _LP = import.meta.env.VITE_LAUNCHER_PORT  ?? '4999'
+const LAUNCHER = `http://${_H}:${_LP}`
 
 export type StepStatus = 'idle' | 'pending' | 'launching' | 'ready' | 'error'
 

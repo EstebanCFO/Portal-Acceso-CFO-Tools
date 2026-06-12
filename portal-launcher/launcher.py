@@ -33,6 +33,9 @@ if _env_path.exists():
 
 PORT            = int(_env_cfg.get('PORT', os.environ.get('PORT', 4999)))
 ALLOWED_ORIGINS = _env_cfg.get('ALLOWED_ORIGINS', os.environ.get('ALLOWED_ORIGINS', 'http://localhost:5174')).split(',')
+APP_HOST        = _env_cfg.get('APP_HOST',  os.environ.get('APP_HOST',  'localhost'))
+PORTAL_PORT     = int(_env_cfg.get('PORTAL_PORT', os.environ.get('PORTAL_PORT', 5174)))
+AUTOSTART_APPS  = _env_cfg.get('AUTOSTART_APPS', os.environ.get('AUTOSTART_APPS', 'false')).strip().lower() == 'true'
 
 # ── Setup ────────────────────────────────────────────────────────────────────
 
@@ -314,10 +317,35 @@ def health():
     return jsonify({'ok': True, 'service': 'portal-launcher', 'port': PORT})
 
 
+# ── Auto-start ───────────────────────────────────────────────────────────────
+
+def _autostart_all() -> None:
+    """Lanza todas las apps en background cuando AUTOSTART_APPS=true.
+    Se ejecuta en un hilo separado para no bloquear el arranque de Flask."""
+    time.sleep(2)   # esperar que Flask esté completamente levantado
+    for app_id in APP_CONFIGS:
+        if app_id in _status:
+            continue   # ya lanzada (no debería ocurrir al boot)
+        _status[app_id] = {
+            'backend':  'pending',
+            'frontend': 'pending',
+            'done':     False,
+            'error':    None,
+        }
+        threading.Thread(target=_launch_worker, args=(app_id,), daemon=True).start()
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
     print(f' * Portal Launcher CFOTech — puerto {PORT}')
     print(f' * BASE_DIR: {BASE_DIR}')
     print(f' * CORS origins: {ALLOWED_ORIGINS}')
-    app.run(host='127.0.0.1', port=PORT, debug=False)
+    print(f' * APP_HOST: {APP_HOST}  |  PORTAL_PORT: {PORTAL_PORT}')
+    print(f' * AUTOSTART_APPS: {AUTOSTART_APPS}')
+    if AUTOSTART_APPS:
+        print(' * Auto-start activado — las apps arrancarán en background…')
+        threading.Thread(target=_autostart_all, daemon=True).start()
+    # Escucha en todas las interfaces para ser accesible desde la red.
+    # En local, 0.0.0.0 incluye 127.0.0.1 — sin cambio para el browser local.
+    app.run(host='0.0.0.0', port=PORT, debug=False)

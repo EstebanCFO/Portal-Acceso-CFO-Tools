@@ -72,9 +72,11 @@ export default function Layout({ children }: Props) {
     await new Promise(r => setTimeout(r, 500))
 
     if (IN_PORTAL) {
+      // VITE_PORTAL_URL se configura en bandas-frontend/.env (default: http://localhost:5174)
+      const portalUrl = import.meta.env.VITE_PORTAL_URL ?? 'http://localhost:5174'
       window.parent.postMessage(
         { type: 'portal:goHome', appId: 'bandas-salariales' },
-        'http://localhost:5174',
+        portalUrl,
       )
     } else {
       window.close()

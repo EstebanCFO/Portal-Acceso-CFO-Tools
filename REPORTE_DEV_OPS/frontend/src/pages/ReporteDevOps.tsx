@@ -151,10 +151,12 @@ export default function ReporteDevOps() {
     } catch {
       // Puede no responder si Flask ya está cerrándose — está bien
     }
-    // Notificar al portal shell para que limpie procesos y vuelva al Dashboard
+    // Notificar al portal shell para que limpie procesos y vuelva al Dashboard.
+    // VITE_PORTAL_URL se configura en frontend/.env (default: http://localhost:5174).
+    const portalUrl = import.meta.env.VITE_PORTAL_URL ?? 'http://localhost:5174'
     window.parent.postMessage(
       { type: 'portal:goHome', appId: 'reporte-devops' },
-      'http://localhost:5174',
+      portalUrl,
     )
   }
 

@@ -13,10 +13,17 @@ builder.Services.AddControllers()
             System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
     });
 
-// CORS: frontend Vite en :5173 + Portal de Acceso en :5174
+// CORS: orígenes permitidos leídos desde appsettings.json → "AllowedOrigins" (CSV).
+// En entornos hosteados, sobreescribir en appsettings.Production.json o variable de entorno.
+// Valor por defecto (local dev): "http://localhost:5173,http://localhost:5174"
+var allowedOrigins = (
+    builder.Configuration.GetValue<string>("AllowedOrigins")
+    ?? "http://localhost:5173,http://localhost:5174"
+).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
 builder.Services.AddCors(opt =>
     opt.AddDefaultPolicy(p =>
-        p.WithOrigins("http://localhost:5173", "http://localhost:5174")
+        p.WithOrigins(allowedOrigins)
          .AllowAnyHeader()
          .AllowAnyMethod()));
 

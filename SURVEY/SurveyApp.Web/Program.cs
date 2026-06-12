@@ -22,18 +22,21 @@ builder.Services.AddHttpClient();  // IHttpClientFactory
 builder.Services.AddScoped<SurveyMonkeyService>();
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
-// Permite llamadas desde el frontend React y desde el portal shell.
+// Orígenes permitidos leídos desde appsettings.json → "AllowedOrigins" (CSV).
+// En entornos hosteados, sobreescribir en appsettings.Production.json o variable de entorno.
+// Valor por defecto (local dev): "http://localhost:5176,http://localhost:5174"
+var allowedOrigins = (
+    builder.Configuration.GetValue<string>("AllowedOrigins")
+    ?? "http://localhost:5176,http://localhost:5174"
+).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins(
-            "http://localhost:5176",   // Survey frontend (React Vite)
-            "http://localhost:5174"    // Portal shell
-        )
-        .AllowAnyHeader()
-        .AllowAnyMethod();
+        policy.WithOrigins(allowedOrigins)
+              .AllowAnyHeader()
+              .AllowAnyMethod();
     });
 });
 

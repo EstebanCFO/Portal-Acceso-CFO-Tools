@@ -2,6 +2,10 @@
 // Para agregar una nueva app: añadir un objeto al array APP_REGISTRY.
 // El portal la mostrará automáticamente en el header y en el Dashboard.
 
+// Host configurable: en desarrollo = "localhost".
+// En producción/red interna, definir VITE_HOST en el .env raíz del portal.
+const _H = import.meta.env.VITE_HOST ?? 'localhost'
+
 export interface App {
   id: string            // slug único → usado como key
   name: string          // nombre mostrado en la pill y en el header
@@ -23,7 +27,7 @@ export const APP_REGISTRY: App[] = [
     name:        'Reporte DevOps',
     description: 'Métricas Azure DevOps por org/proyecto, desvíos de sprint, test plans y generación de PDF',
     icon:        '📋',
-    url:         'http://localhost:5001',
+    url:         `http://${_H}:5001`,
     type:        'iframe',
     iconBg:      '#EEF2F8',
     iconColor:   '#0A1F44',
@@ -37,7 +41,7 @@ export const APP_REGISTRY: App[] = [
     name:        'Bandas Salariales',
     description: 'Gestión y análisis de bandas salariales por posición y nivel',
     icon:        '📊',
-    url:         'http://localhost:5173',
+    url:         `http://${_H}:5173`,
     type:        'iframe',
     iconBg:      '#EEF2F8',
     iconColor:   '#0A1F44',
@@ -51,7 +55,7 @@ export const APP_REGISTRY: App[] = [
     name:        'Job Matcher',
     description: 'Matching IA de candidatos con posiciones + generación de Job Descriptions desde propuestas',
     icon:        '🔍',
-    url:         'http://localhost:5003',   // FASE 3: frontend React Vite :5003
+    url:         `http://${_H}:5003`,   // FASE 3: frontend React Vite :5003
     type:        'iframe',
     iconBg:      '#F0FDF4',
     iconColor:   '#00875A',
@@ -65,7 +69,7 @@ export const APP_REGISTRY: App[] = [
     name:        'Survey Analytics',
     description: 'Feedback de clientes y proyectos desde SurveyMonkey — respuestas y analytics por pregunta',
     icon:        '📝',
-    url:         'http://localhost:5176',
+    url:         `http://${_H}:5176`,
     type:        'iframe',
     iconBg:      '#FFF7ED',
     iconColor:   '#C96A00',

@@ -21,9 +21,11 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# CORS: permite llamadas desde el frontend React (dev y prod)
-FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5001')
-CORS(app, origins=[FRONTEND_URL, 'http://localhost:5174'])  # portal también
+# CORS: permite llamadas desde el frontend React y desde el portal shell.
+# En entornos hosteados, definir FRONTEND_URL y PORTAL_ORIGIN en backend/.env.
+FRONTEND_URL  = os.getenv('FRONTEND_URL',  'http://localhost:5001')
+PORTAL_ORIGIN = os.getenv('PORTAL_ORIGIN', 'http://localhost:5174')
+CORS(app, origins=[FRONTEND_URL, PORTAL_ORIGIN])
 
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.getenv('OUTPUT_DIR', os.path.join(BASE_DIR, 'output'))

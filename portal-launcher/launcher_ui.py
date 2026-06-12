@@ -18,6 +18,25 @@ import sys
 LAUNCHER_DIR = os.path.dirname(os.path.abspath(__file__))   # portal-launcher/
 BASE_DIR     = os.path.dirname(LAUNCHER_DIR)                # Portal de Acceso/
 
+# ── Config desde launcher/.env ────────────────────────────────────────────────
+# Leemos el mismo .env que usa launcher.py para obtener APP_HOST y PORTAL_PORT.
+_env_path = os.path.join(LAUNCHER_DIR, '.env')
+_ui_cfg: dict[str, str] = {}
+if os.path.exists(_env_path):
+    with open(_env_path, encoding='utf-8') as _f:
+        for _l in _f:
+            _l = _l.strip()
+            if _l and not _l.startswith('#') and '=' in _l:
+                _k, _v = _l.split('=', 1)
+                _ui_cfg[_k.strip()] = _v.strip()
+
+LAUNCHER_PORT = int(_ui_cfg.get('PORT',         '4999'))
+APP_HOST      =     _ui_cfg.get('APP_HOST',     'localhost')
+PORTAL_PORT   = int(_ui_cfg.get('PORTAL_PORT',  '5174'))
+
+LAUNCHER_URL  = f'http://localhost:{LAUNCHER_PORT}'   # siempre local (mismo PC)
+PORTAL_URL    = f'http://{APP_HOST}:{PORTAL_PORT}'    # puede ser IP/dominio en red
+
 # ── Design System tokens ──────────────────────────────────────────────────────
 C_HEADER    = '#0B1526'   # --navy-dark   header bg
 C_BORDER    = '#1C2E48'   # header border / window outline
@@ -299,9 +318,9 @@ class LauncherUI:
 
     def _startup_sequence(self):
         # 1. Liberar puertos
-        self._set_step('Liberando puertos 4999 y 5174…')
-        _kill_port(4999)
-        _kill_port(5174)
+        self._set_step(f'Liberando puertos {LAUNCHER_PORT} y {PORTAL_PORT}…')
+        _kill_port(LAUNCHER_PORT)
+        _kill_port(PORTAL_PORT)
         time.sleep(0.4)
 
         # 2. pip install (silencioso)
@@ -313,20 +332,20 @@ class LauncherUI:
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
 
-        # 3. Arrancar Portal Launcher
-        self._set_step('Iniciando Portal Launcher (:4999)…')
-        if not _ping('http://localhost:4999/api/health', 1):
+        # 3. Arrancar Portal Launcher (siempre en localhost — mismo PC)
+        self._set_step(f'Iniciando Portal Launcher (:{LAUNCHER_PORT})…')
+        if not _ping(f'{LAUNCHER_URL}/api/health', 1):
             self._procs['launcher'] = _run_proc('python launcher.py', LAUNCHER_DIR)
 
         deadline = time.time() + 20
         while time.time() < deadline:
-            if _ping('http://localhost:4999/api/health', 1):
+            if _ping(f'{LAUNCHER_URL}/api/health', 1):
                 self._set_status('launcher', 'ready')
                 break
             time.sleep(0.8)
         else:
             self._set_status('launcher', 'error')
-            self._set_step('Error: Portal Launcher no respondió en 20 s.')
+            self._set_step(f'Error: Portal Launcher no respondió en 20 s.')
             return
 
         # 4. npm install si falta node_modules
@@ -339,27 +358,28 @@ class LauncherUI:
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
 
-        # 5. Arrancar Vite portal
-        self._set_step('Iniciando Portal React + Vite (:5174)…')
-        if not _ping('http://localhost:5174', 1):
+        # 5. Arrancar Vite portal (Vite siempre escucha en localhost)
+        local_portal = f'http://localhost:{PORTAL_PORT}'
+        self._set_step(f'Iniciando Portal React + Vite (:{PORTAL_PORT})…')
+        if not _ping(local_portal, 1):
             self._procs['portal'] = _run_proc('npm run dev', BASE_DIR)
 
         deadline = time.time() + 45
         while time.time() < deadline:
-            if _ping('http://localhost:5174', 1):
+            if _ping(local_portal, 1):
                 self._set_status('portal', 'ready')
-                self._set_step('Portal listo — http://localhost:5174')
+                self._set_step(f'Portal listo — {PORTAL_URL}')
                 self.root.after(0, self._on_portal_ready)
                 return
             time.sleep(1)
 
         self._set_status('portal', 'error')
-        self._set_step('Error: Portal no respondió en 45 s.')
+        self._set_step(f'Error: Portal no respondió en 45 s.')
 
     def _on_portal_ready(self):
         """Habilita el botón Abrir y abre el browser automáticamente."""
         self.btn_abrir.config(state='normal', bg=C_NAVY)
-        webbrowser.open('http://localhost:5174')
+        webbrowser.open(PORTAL_URL)
 
     # ── health polling ────────────────────────────────────────────────────────
 
@@ -369,32 +389,33 @@ class LauncherUI:
         threading.Thread(target=self._check_health, daemon=True).start()
 
     def _check_health(self):
-        l_ok = _ping('http://localhost:4999/api/health', 1.5)
-        p_ok = _ping('http://localhost:5174', 1.5)
+        local_portal = f'http://localhost:{PORTAL_PORT}'
+        l_ok = _ping(f'{LAUNCHER_URL}/api/health', 1.5)
+        p_ok = _ping(local_portal, 1.5)
         if self._alive:
             self.root.after(0, self._apply_health, l_ok, p_ok)
 
     def _apply_health(self, launcher_ok: bool, portal_ok: bool):
         if self._status['launcher'] == 'ready' and not launcher_ok:
             self._set_status('launcher', 'error')
-            self._set_step('Advertencia: Launcher (:4999) no responde.')
+            self._set_step(f'Advertencia: Launcher (:{LAUNCHER_PORT}) no responde.')
         if self._status['portal'] == 'ready' and not portal_ok:
             self._set_status('portal', 'error')
-            self._set_step('Advertencia: Portal (:5174) no responde.')
+            self._set_step(f'Advertencia: Portal (:{PORTAL_PORT}) no responde.')
         if self._alive:
             self.root.after(self.POLL_MS, self._poll)
 
     # ── acciones ─────────────────────────────────────────────────────────────
 
     def _open_browser(self):
-        webbrowser.open('http://localhost:5174')
+        webbrowser.open(PORTAL_URL)
 
     def _stop_all(self):
         self._set_step('Deteniendo servicios…')
         # Pedir al launcher que detenga todas las apps
         try:
             req = urllib.request.Request(
-                'http://localhost:4999/api/stop-all',
+                f'{LAUNCHER_URL}/api/stop-all',
                 data=b'', method='POST')
             urllib.request.urlopen(req, timeout=3)
         except Exception:
@@ -407,8 +428,8 @@ class LauncherUI:
                 except Exception:
                     pass
         self._procs.clear()
-        _kill_port(4999)
-        _kill_port(5174)
+        _kill_port(LAUNCHER_PORT)
+        _kill_port(PORTAL_PORT)
         self._set_status('launcher', 'pending')
         self._set_status('portal',   'pending')
         self._set_step('Servicios detenidos.')

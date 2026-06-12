@@ -16,9 +16,11 @@ export default function App() {
     setSaliendo(true)
     try { await apiShutdown() } catch { /* servidor puede no estar corriendo */ }
     if (IN_PORTAL) {
+      // VITE_PORTAL_URL se configura en survey-frontend/.env (default: http://localhost:5174)
+      const portalUrl = import.meta.env.VITE_PORTAL_URL ?? 'http://localhost:5174'
       window.parent.postMessage(
         { type: 'portal:goHome', appId: 'survey' },
-        'http://localhost:5174',
+        portalUrl,
       )
     } else {
       setTimeout(() => window.close(), 600)

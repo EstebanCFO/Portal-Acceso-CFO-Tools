@@ -20,9 +20,11 @@ export default function App() {
     setShowModal(false)
     try { await apiShutdown() } catch { /* normal: el server corta antes de responder */ }
     if (IN_PORTAL) {
+      // VITE_PORTAL_URL se configura en frontend/.env (default: http://localhost:5174)
+      const portalUrl = import.meta.env.VITE_PORTAL_URL ?? 'http://localhost:5174'
       window.parent.postMessage(
         { type: 'portal:goHome', appId: 'job-matcher' },
-        'http://localhost:5174',
+        portalUrl,
       )
     } else {
       setTimeout(() => window.close(), 600)
