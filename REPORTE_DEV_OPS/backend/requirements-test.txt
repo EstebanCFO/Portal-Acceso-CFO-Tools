@@ -1,0 +1,7 @@
+# Dependencias de testing — backend Reporte DevOps
+# pip install -r requirements-test.txt
+-r requirements.txt
+
+pytest>=8.0.0
+pytest-mock>=3.14.0
+responses>=0.25.3

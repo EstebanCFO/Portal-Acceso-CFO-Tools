@@ -1,0 +1,36 @@
+# Node
+node_modules/
+dist/
+.vite/
+
+# .NET
+bin/
+obj/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Variables de entorno — nunca commitear
+.env
+.env.local
+.env.*.local
+
+# Base de datos local (SQLite) — nunca commitear
+db/bandas_salariales.db
+db/*.db-wal
+db/*.db-shm
+db/_tmp/
+
+# Claude Code — configuración local de máquina
+.claude/settings.local.json
+
+# Archivos Excel fuente (datos sensibles)
+*.xlsx
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

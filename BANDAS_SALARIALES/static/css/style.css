@@ -1,0 +1,65 @@
+/* ── Bandas Salariales DC — Custom Styles ── */
+
+body {
+  font-size: 0.9rem;
+}
+
+/* Navbar */
+.navbar-brand {
+  font-size: 1rem;
+  letter-spacing: 0.3px;
+}
+
+/* Cards con hover sutil */
+.card {
+  transition: box-shadow 0.15s ease;
+}
+.card:hover {
+  box-shadow: 0 .25rem .75rem rgba(0,0,0,.09) !important;
+}
+
+/* KPI número grande */
+.fs-2 { line-height: 1.1; }
+
+/* Progress bar texto */
+.progress-bar { font-size: 0.75rem; font-weight: 600; }
+
+/* Upload area drag & drop */
+.upload-area {
+  transition: background 0.2s, border-color 0.2s;
+  cursor: pointer;
+  border-style: dashed !important;
+}
+.upload-area:hover {
+  background: rgba(13,110,253,0.04);
+  border-color: #0d6efd !important;
+}
+
+/* DataTables override */
+.dataTables_wrapper .dataTables_filter input {
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 4px 10px;
+}
+.dataTables_wrapper .dataTables_length select {
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+table.dataTable tbody tr:hover { cursor: pointer; }
+
+/* Tabla compacta */
+.table-sm td, .table-sm th { padding: 0.4rem 0.6rem; }
+
+/* Autocomplete list */
+#autocompleteList li { font-size: 0.85rem; }
+
+/* Badge seniority */
+.badge.border { font-weight: 500; }
+
+/* Animación fade para flash alerts */
+.alert { animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; } }
+
+/* Chart container */
+canvas { max-height: 300px; }

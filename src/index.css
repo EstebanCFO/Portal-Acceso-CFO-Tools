@@ -1,0 +1,801 @@
+/* ── CFOTech IT Tools — Design System tokens ────────────── */
+:root {
+  /* Paleta principal */
+  --navy-dark:   #0B1526;
+  --navy:        #0A1F44;
+  --navy-light:  #1A3560;
+  --nav-active:  #1B3F8A;   /* pill activa en header */
+  --green-a:     #4FD1B2;
+  --logo-green:  #00A878;
+  --green:       #00875A;
+  --green-l:     #E3F5EE;
+
+  /* Grises / neutros */
+  --gray1:       #F4F6F9;
+  --gray2:       #E8ECF2;
+  --gray3:       #C4CDD8;
+  --border:      #D1D9E6;
+  --text:        #0D1B2A;
+  --text2:       #4A5568;
+  --text3:       #718096;
+
+  /* Semáforo */
+  --orange:      #C96A00;
+  --orange-l:    #FFF3E0;
+  --red:         #C0392B;
+  --red-l:       #FDECEA;
+
+  /* Layout */
+  --header-h:    48px;
+
+  /* Tipografía */
+  --font: -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* ── Reset ───────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--navy-dark);
+  overflow: hidden;
+}
+
+/* ── Layout raíz ─────────────────────────────────────────── */
+.portal-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* ── Header ──────────────────────────────────────────────── */
+.portal-header {
+  height: var(--header-h);
+  background: var(--navy-dark);
+  border-bottom: 3px solid #1C2E48;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 0;
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+/* Logo */
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 8px 4px 0;
+  border-radius: 8px;
+  transition: background .15s;
+}
+.header-logo:hover { background: rgba(255,255,255,.06); }
+
+.logo-badge {
+  width: 32px;
+  height: 32px;
+  background: var(--logo-green);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 11px;
+  color: #fff;
+  letter-spacing: .5px;
+  flex-shrink: 0;
+}
+
+.header-brand {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.header-brand-main {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: .3px;
+}
+.header-brand-sub {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--green-a);
+  letter-spacing: .3px;
+}
+
+/* Divisor logo/nav */
+.header-divider {
+  width: 1px;
+  height: 22px;
+  background: rgba(255,255,255,.12);
+  margin: 0 14px;
+  flex-shrink: 0;
+}
+
+/* Nav pills */
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.header-nav::-webkit-scrollbar { display: none; }
+
+.nav-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 20px;
+  border: none;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background .15s, color .15s, box-shadow .15s;
+  outline: none;
+  color: rgba(255,255,255,.52);
+  background: rgba(255,255,255,.07);
+  position: relative;
+}
+
+.nav-pill:hover:not(.active):not(.disabled) {
+  background: rgba(255,255,255,.12);
+  color: rgba(255,255,255,.82);
+}
+
+.nav-pill.active {
+  background: var(--nav-active);
+  color: #fff;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.15) inset;
+  font-weight: 600;
+}
+
+.nav-pill.disabled {
+  opacity: .42;
+  cursor: not-allowed;
+}
+
+.nav-pill-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* Badge "próximamente" sobre la pill */
+.nav-pill-badge {
+  position: absolute;
+  top: -5px;
+  right: -2px;
+  font-size: 9px;
+  font-weight: 700;
+  background: var(--orange);
+  color: #fff;
+  padding: 1px 5px;
+  border-radius: 10px;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* App name en header (lado derecho) */
+.header-app-name {
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 1px solid rgba(255,255,255,.12);
+  font-size: 12px;
+  color: rgba(255,255,255,.45);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Botón Salir / ← Volver */
+.btn-exit {
+  margin-left: auto;
+  flex-shrink: 0;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,.22);
+  background: transparent;
+  color: rgba(255,255,255,.62);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+  white-space: nowrap;
+}
+.btn-exit:hover {
+  background: rgba(255,255,255,.08);
+  color: #fff;
+}
+/* Variante "← Volver" — borde ligeramente más visible para indicar acción */
+.btn-exit.btn-back {
+  border-color: rgba(79,209,178,.4);   /* --green-a tenue */
+  color: rgba(79,209,178,.85);
+}
+.btn-exit.btn-back:hover {
+  background: rgba(79,209,178,.12);
+  border-color: rgba(79,209,178,.7);
+  color: var(--green-a);
+}
+
+/* ── Cuerpo principal ─────────────────────────────────────── */
+.portal-body {
+  flex: 1;
+  overflow: hidden;
+  background: var(--gray1);
+  position: relative;
+}
+
+/* ── Dashboard (pantalla de inicio) ──────────────────────── */
+.dashboard {
+  height: 100%;
+  overflow-y: auto;
+  background: var(--gray1);
+  padding: 32px;
+}
+
+.dashboard-welcome {
+  margin-bottom: 28px;
+}
+.dashboard-welcome h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 6px;
+}
+.dashboard-welcome p {
+  font-size: 14px;
+  color: var(--text2);
+}
+
+/* Grid de apps */
+.app-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+/* App card */
+.app-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: box-shadow .15s, transform .15s, border-color .15s;
+  cursor: default;
+}
+.app-card.clickable {
+  cursor: pointer;
+}
+.app-card.clickable:hover {
+  box-shadow: 0 4px 20px rgba(10,31,68,.1);
+  transform: translateY(-2px);
+  border-color: var(--navy-light);
+}
+
+.app-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.app-card-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.app-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.app-card-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--navy);
+  margin-bottom: 3px;
+}
+
+.app-card-category {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text3);
+  font-weight: 600;
+}
+
+.app-card-desc {
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.5;
+}
+
+.app-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+}
+
+.app-card-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.tag {
+  font-size: 11px;
+  background: var(--gray1);
+  color: var(--text2);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+/* Botones de app card */
+.btn-open {
+  height: 32px;
+  padding: 0 16px;
+  border-radius: 8px;
+  border: none;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s;
+  flex-shrink: 0;
+}
+.btn-open.navy {
+  background: var(--navy);
+  color: #fff;
+}
+.btn-open.navy:hover { background: var(--navy-light); }
+
+.btn-open.muted {
+  background: var(--gray2);
+  color: var(--text3);
+  cursor: not-allowed;
+}
+
+/* Badges de status */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.status-badge.active {
+  background: var(--green-l);
+  color: #085041;
+}
+.status-badge.active::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+}
+.status-badge.coming-soon {
+  background: var(--gray2);
+  color: var(--text2);
+}
+.status-badge.maintenance {
+  background: var(--orange-l);
+  color: var(--orange);
+}
+
+/* ── AppFrame (iframe) ───────────────────────────────────── */
+.app-frame-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-frame-iframe {
+  flex: 1;
+  width: 100%;
+  border: none;
+  display: block;
+}
+
+/* Estado de carga */
+.frame-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--gray1);
+  gap: 14px;
+  pointer-events: none;
+  transition: opacity .3s;
+}
+.frame-loading.hidden { opacity: 0; }
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--gray2);
+  border-top-color: var(--navy);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.frame-loading-text {
+  font-size: 13px;
+  color: var(--text2);
+}
+
+/* Error iframe */
+.frame-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--gray1);
+  gap: 12px;
+  padding: 40px;
+  text-align: center;
+}
+.frame-error-icon { font-size: 40px; }
+.frame-error h3 { font-size: 16px; font-weight: 600; color: var(--navy); }
+.frame-error p  { font-size: 13px; color: var(--text2); max-width: 400px; line-height: 1.6; }
+.frame-error code {
+  font-size: 12px;
+  background: var(--gray2);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: 'Consolas', monospace;
+}
+
+.btn-navy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 18px;
+  border-radius: 8px;
+  border: none;
+  background: var(--navy);
+  color: #fff;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-navy:hover { background: var(--navy-light); }
+
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 18px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text2);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.btn-outline:hover { border-color: var(--navy); color: var(--navy); }
+
+/* App offline (servidor no está corriendo) */
+.frame-offline {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--gray1);
+  gap: 12px;
+  padding: 40px;
+  text-align: center;
+}
+.frame-offline-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--orange-l);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  flex-shrink: 0;
+}
+.frame-offline h3  { font-size: 18px; font-weight: 700; color: var(--navy); }
+.frame-offline p   { font-size: 14px; color: var(--text2); max-width: 420px; line-height: 1.6; }
+.frame-offline code {
+  font-size: 12px;
+  background: var(--gray2);
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: 'Consolas', monospace;
+}
+.frame-offline-cmd {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+}
+.frame-offline-cmd-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .6px;
+}
+.frame-offline-cmd-box {
+  background: var(--navy);
+  color: var(--green-a);
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-family: 'Consolas', monospace;
+  font-size: 14px;
+  letter-spacing: .3px;
+  min-width: 300px;
+  text-align: left;
+}
+.frame-offline-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+/* ── Pantalla "Iniciando" — overlay semitransparente + tarjeta centrada ──────── */
+/* Reemplaza las ventanas de consola DOS: muestra el progreso de arranque         */
+/* en una tarjeta estilizada con los colores del DS CFOTech.                      */
+.frame-launching {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 25, 50, 0.60);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  padding: 24px;
+}
+
+/* Tarjeta blanca — simula una ventana de progreso estilizada */
+.launch-card {
+  background: #fff;
+  border-radius: 16px;
+  border-top: 3px solid var(--green-a);
+  box-shadow: 0 16px 48px rgba(10, 31, 68, .28), 0 2px 10px rgba(10, 31, 68, .10);
+  padding: 32px 36px 28px;
+  max-width: 400px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.frame-launching-icon {
+  font-size: 52px;
+  line-height: 1;
+}
+
+.launch-card h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--navy);
+  margin: 0;
+}
+
+/* Texto "Conectando..." antes de recibir info del launcher */
+.launch-waiting {
+  font-size: 13px;
+  color: var(--text2);
+  margin: 0;
+}
+
+/* ── Pasos de lanzamiento — backend + frontend ──────────────────────────────── */
+.launch-steps {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.launch-step {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--gray1);
+  border: 1px solid var(--gray2);
+  transition: background .3s, border-color .3s;
+}
+
+.launch-step--launching {
+  background: #EEF2F8;
+  border-color: #b3c5e0;
+}
+
+.launch-step--ready {
+  background: #E8FAF5;
+  border-color: var(--green-a);
+}
+
+.launch-step--error {
+  background: #FFF0F0;
+  border-color: #FF6B6B;
+}
+
+.launch-step-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text2);
+}
+
+.launch-step--ready     .launch-step-icon { color: var(--green-a); }
+.launch-step--error     .launch-step-icon { color: #E53E3E; }
+.launch-step--launching .launch-step-icon { color: var(--navy); }
+
+.launch-step-label {
+  font-weight: 600;
+  color: var(--navy);
+  text-align: left;
+  font-size: 12.5px;
+}
+
+.launch-step-status {
+  font-size: 11px;
+  color: var(--text2);
+  white-space: nowrap;
+}
+
+.launch-step--ready     .launch-step-status { color: var(--green-a); font-weight: 600; }
+.launch-step--error     .launch-step-status { color: #E53E3E; font-weight: 600; }
+.launch-step--launching .launch-step-status { color: var(--navy); }
+
+/* ── Reloj animado ─────────────────────────────────────────────────────────────
+   Dos agujas CSS-only que giran a distinta velocidad. Sin JS, sin SVG externo. */
+.launch-clock {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 3px solid var(--navy);
+  background: #fff;
+  flex-shrink: 0;
+}
+
+/* Centro del reloj */
+.launch-clock::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  background: var(--navy);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+}
+
+/* Aguja horaria — gira lento (8s) */
+@keyframes clock-hour {
+  from { transform: translateX(-50%) rotate(0deg); }
+  to   { transform: translateX(-50%) rotate(360deg); }
+}
+
+.launch-clock-hour {
+  position: absolute;
+  bottom: 50%;
+  left: 50%;
+  width: 3px;
+  height: 28%;
+  background: var(--navy);
+  border-radius: 3px 3px 0 0;
+  transform-origin: bottom center;
+  transform: translateX(-50%) rotate(0deg);
+  animation: clock-hour 8s linear infinite;
+}
+
+/* Aguja minutera — gira rápido (1.5s) */
+@keyframes clock-minute {
+  from { transform: translateX(-50%) rotate(0deg); }
+  to   { transform: translateX(-50%) rotate(360deg); }
+}
+
+.launch-clock-minute {
+  position: absolute;
+  bottom: 50%;
+  left: 50%;
+  width: 2px;
+  height: 38%;
+  background: var(--green-a);
+  border-radius: 2px 2px 0 0;
+  transform-origin: bottom center;
+  transform: translateX(-50%) rotate(90deg);
+  animation: clock-minute 1.5s linear infinite;
+}
+
+/* Spinner pequeño (conservado — usado en loading overlay post-launch) */
+.spinner-sm {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--gray3);
+  border-top-color: var(--navy);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+/* Coming soon state */
+.frame-coming-soon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--gray1);
+  gap: 14px;
+  padding: 40px;
+  text-align: center;
+}
+.frame-coming-soon-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  background: var(--gray2);
+  margin-bottom: 6px;
+}
+.frame-coming-soon h3 { font-size: 18px; font-weight: 700; color: var(--navy); }
+.frame-coming-soon p  { font-size: 14px; color: var(--text2); max-width: 360px; line-height: 1.6; }

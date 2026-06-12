@@ -1,0 +1,65 @@
+# ──────────────────────────────────────────────────────────────
+# Portal de Acceso CFOTech — .gitignore raíz
+# Cubre todo el monorepo: portal shell + REPORTE_DEV_OPS +
+# BANDAS_SALARIALES + JOB_MATCHER + SURVEY + portal-launcher
+# ──────────────────────────────────────────────────────────────
+
+# Node / npm
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# .NET
+bin/
+obj/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Variables de entorno / secrets — NUNCA commitear
+.env
+.env.local
+.env.*.local
+
+# ASP.NET Core — appsettings con tokens (el base appsettings.json sí se commitea)
+appsettings.Development.json
+appsettings.*.json
+
+# Archivos generados en runtime
+logs/
+*.log
+backend/uploads/
+backend/output/
+backend/datos_raw.json
+backend/datos_procesados.json
+templates/templates.json
+
+# Base de datos local (SQLite — datos sensibles + archivos WAL)
+db/*.db
+db/*.db-wal
+db/*.db-shm
+db/_tmp/
+
+# Claude Code — configuración local de máquina (no compartir)
+.claude/settings.local.json
+
+# Archivos Excel con datos sensibles
+*.xlsx
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates

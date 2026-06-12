@@ -1,0 +1,471 @@
+/* ── CFOTech IT Tools — Design System tokens ────────────── */
+:root {
+  /* Paleta principal */
+  --navy-dark:   #0B1526;
+  --navy:        #0A1F44;
+  --navy-light:  #1A3560;
+  --green-a:     #4FD1B2;
+  --logo-green:  #00A878;
+  --green:       #00875A;
+  --green-l:     #E3F5EE;
+
+  /* Grises / neutros */
+  --gray1:       #F4F6F9;
+  --gray2:       #E8ECF2;
+  --gray3:       #C4CDD8;
+  --border:      #D1D9E6;
+  --text:        #0D1B2A;
+  --text2:       #4A5568;
+  --text3:       #718096;
+
+  /* Semáforo */
+  --orange:      #C96A00;
+  --orange-l:    #FFF3E0;
+  --red:         #C0392B;
+  --red-l:       #FDECEA;
+
+  /* Layout */
+  --header-h:    48px;
+  --toolbar-h:   40px;
+  --sidebar-w:   0px;   /* sin sidebar en esta app */
+
+  /* Tipografía */
+  --font:        -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* ── Reset ───────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--gray1);
+}
+
+/* ── Header ──────────────────────────────────────────────── */
+.app-header {
+  height: var(--header-h);
+  background: var(--navy-dark);
+  border-bottom: 3px solid #1C2E48;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 16px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-badge {
+  width: 32px;
+  height: 32px;
+  background: var(--logo-green);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 11px;
+  color: #fff;
+  letter-spacing: .5px;
+  flex-shrink: 0;
+}
+
+.header-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.header-brand-main {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+}
+
+.header-brand-sub {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--green-a);   /* #4FD1B2 */
+  line-height: 1;
+}
+
+.header-app-name {
+  font-size: 13px;
+  color: var(--green-a);
+  font-weight: 500;
+  margin-left: auto;
+}
+
+/* ── Layout página ────────────────────────────────────────── */
+.page-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.page-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+/* ── Toolbar / filtros ───────────────────────────────────── */
+.toolbar {
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  padding: 8px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.toolbar label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text2);
+  margin-right: 4px;
+}
+
+.toolbar select,
+.toolbar input {
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: var(--text);
+  background: #fff;
+  min-width: 160px;
+}
+
+.toolbar select:focus,
+.toolbar input:focus {
+  outline: none;
+  border-color: var(--navy-light);
+  box-shadow: 0 0 0 3px rgba(10, 31, 68, .12);
+}
+
+/* ── Botones ──────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: background .15s, opacity .15s;
+}
+
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.btn-navy {
+  background: var(--navy);
+  color: #fff;
+}
+.btn-navy:hover:not(:disabled) { background: var(--navy-light); }
+
+.btn-green {
+  background: var(--green);
+  color: #fff;
+}
+.btn-green:hover:not(:disabled) { background: #006f48; }
+
+.btn-outline {
+  background: transparent;
+  color: var(--navy);
+  border: 1px solid var(--navy);
+}
+.btn-outline:hover:not(:disabled) { background: var(--gray1); }
+
+.btn-danger {
+  background: transparent;
+  color: var(--red);
+  border: 1px solid var(--red);
+  border-radius: 20px;
+}
+.btn-danger:hover:not(:disabled) { background: var(--red-l); }
+
+.btn-sm {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+
+/* ── Cards ────────────────────────────────────────────────── */
+.card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.card-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text2);
+  margin-bottom: 12px;
+}
+
+/* ── KPI Grid ─────────────────────────────────────────────── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.kpi-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kpi-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text2);
+}
+
+.kpi-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--navy);
+  line-height: 1;
+}
+
+.kpi-value.green  { color: var(--green); }
+.kpi-value.orange { color: var(--orange); }
+.kpi-value.red    { color: var(--red); }
+
+/* ── Sección de contenido ─────────────────────────────────── */
+.section {
+  margin-bottom: 24px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--navy);
+}
+
+/* ── Tabla ────────────────────────────────────────────────── */
+.table-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+thead th {
+  background: var(--navy);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  padding: 10px 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+tbody tr:nth-child(odd)  { background: #fff; }
+tbody tr:nth-child(even) { background: var(--gray1); }
+tbody tr:hover           { background: var(--gray2); cursor: pointer; }
+
+tbody td {
+  padding: 9px 12px;
+  color: var(--text);
+  border-top: 1px solid var(--border);
+}
+
+/* ── Badges ───────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-green  { background: var(--green-l);  color: #085041; }
+.badge-orange { background: var(--orange-l); color: var(--orange); }
+.badge-red    { background: var(--red-l);    color: var(--red); }
+.badge-gray   { background: var(--gray2);    color: var(--text2); }
+
+/* ── Progress bar ─────────────────────────────────────────── */
+.progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--gray2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--green);
+  border-radius: 3px;
+  transition: width .3s;
+}
+
+.progress-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+  min-width: 36px;
+  text-align: right;
+}
+
+/* ── Estado generación ────────────────────────────────────── */
+.estado-bar {
+  background: var(--navy-dark);
+  color: #fff;
+  padding: 8px 24px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.estado-bar.ok      { background: #064d2f; }
+.estado-bar.error   { background: #5c1010; }
+.estado-bar.running { background: var(--navy); }
+
+/* ── Spinner ──────────────────────────────────────────────── */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Log viewer ───────────────────────────────────────────── */
+.log-pre {
+  background: #0D1B2A;
+  color: #E2E8F0;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 16px;
+  border-radius: 8px;
+  overflow: auto;
+  max-height: 400px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ── Tabs ─────────────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 20px;
+}
+
+.tab {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text2);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color .15s, border-color .15s;
+}
+
+.tab:hover { color: var(--navy); }
+
+.tab.active {
+  color: var(--navy);
+  border-bottom-color: var(--navy);
+  font-weight: 600;
+}
+
+/* ── Empty / error states ─────────────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: var(--text3);
+  gap: 8px;
+  font-size: 14px;
+}
+
+.empty-state strong { font-size: 16px; color: var(--text2); }
+
+/* ── Divider ──────────────────────────────────────────────── */
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 20px 0;
+}
+
+/* ── Utility ──────────────────────────────────────────────── */
+.text-center { text-align: center; }
+.text-right  { text-align: right; }
+.text-muted  { color: var(--text2); }
+.text-small  { font-size: 12px; }
+.mono        { font-family: 'Consolas', 'Courier New', monospace; }
+.gap-8       { display: flex; gap: 8px; align-items: center; }
+.gap-12      { display: flex; gap: 12px; align-items: center; }
+.flex-wrap   { flex-wrap: wrap; }
+.ml-auto     { margin-left: auto; }

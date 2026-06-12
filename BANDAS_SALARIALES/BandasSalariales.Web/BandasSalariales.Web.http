@@ -1,0 +1,6 @@
+@BandasSalariales.Web_HostAddress = http://localhost:5146
+
+GET {{BandasSalariales.Web_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Demo Header — Bandas Salariales</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #F4F6F9; color: #0D1B2A; }
+
+    /* ─── HEADER NUEVO ─────────────────────────────────────── */
+    .header-new {
+      background: #0B1526;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      border-bottom: 3px solid #1C2E48;
+      position: sticky; top: 0; z-index: 100;
+    }
+
+    .header-new .logo {
+      width: 32px; height: 32px;
+      background: #00A878;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      margin-right: 12px;
+    }
+    .header-new .logo span {
+      font-size: 11px; font-weight: 700; color: white; letter-spacing: -.3px;
+    }
+
+    .header-new .brand {
+      display: flex; align-items: center; gap: 0;
+      white-space: nowrap;
+    }
+    .header-new .brand .cfotech { font-size: 15px; font-weight: 700; color: white; }
+    .header-new .brand .it-tools { font-size: 15px; font-weight: 700; color: #4FD1B2; margin-left: 4px; }
+    .header-new .brand .separator { font-size: 13px; color: rgba(255,255,255,.25); margin: 0 10px; }
+    .header-new .brand .app-name { font-size: 13px; color: rgba(255,255,255,.55); font-weight: 400; }
+
+    .header-new .spacer { flex: 1; }
+
+    .header-new .right {
+      display: flex; align-items: center; gap: 16px;
+    }
+    .header-new .status {
+      display: flex; align-items: center; gap: 6px;
+    }
+    .header-new .status .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #4FD1B2;
+      box-shadow: 0 0 6px #4FD1B2;
+    }
+    .header-new .status span {
+      font-size: 12px; color: rgba(255,255,255,.60); white-space: nowrap;
+    }
+    .header-new .btn-salir {
+      font-size: 12px; color: white; font-weight: 500;
+      border: 1px solid rgba(255,255,255,.30);
+      border-radius: 20px;
+      padding: 4px 14px;
+      background: transparent; cursor: pointer;
+      font-family: inherit;
+      transition: border-color .15s, background .15s;
+    }
+    .header-new .btn-salir:hover {
+      border-color: rgba(255,255,255,.70);
+      background: rgba(255,255,255,.06);
+    }
+
+    /* ─── HEADER VIEJO (para comparar) ───────────────────── */
+    .header-old {
+      background: #0A1F44;
+      height: 90px;
+      display: flex;
+      align-items: center;
+      padding: 0 28px;
+      border-bottom: 4px solid #D9DCE3;
+    }
+    .header-old .logo {
+      width: 70px; height: 70px;
+      background: #00A878; border-radius: 18px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; margin-right: 15px;
+    }
+    .header-old .logo span { font-size: 20px; font-weight: 700; color: white; }
+    .header-old .titles {}
+    .header-old .brand-big { font-size: 28px; font-weight: 700; }
+    .header-old .brand-big .ct { color: #4FD1B2; }
+    .header-old .brand-big .it { color: white; }
+    .header-old .sub { font-size: 12px; color: rgba(255,255,255,.55); margin-top: 4px; letter-spacing: .3px; }
+    .header-old .spacer { flex: 1; }
+    .header-old .right { display: flex; align-items: center; gap: 16px; }
+    .header-old .status { display: flex; align-items: center; gap: 6px; }
+    .header-old .status .dot { width: 8px; height: 8px; border-radius: 50%; background: #4FD1B2; box-shadow: 0 0 6px #4FD1B2; }
+    .header-old .status span { font-size: 12px; color: rgba(255,255,255,.65); }
+    .header-old .btn-salir {
+      font-size: 12px; color: white; font-weight: 500;
+      border: 1px solid rgba(255,255,255,.35); border-radius: 8px;
+      padding: 5px 12px; background: transparent; cursor: pointer; font-family: inherit;
+    }
+
+    /* ─── Página de demo ──────────────────────────────────── */
+    .demo-section { padding: 24px; }
+    .demo-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .8px; color: #4A5568; margin-bottom: 10px;
+    }
+    .demo-card {
+      background: white; border: 1px solid #D1D9E6;
+      border-radius: 12px; overflow: hidden; margin-bottom: 32px;
+      box-shadow: 0 1px 4px rgba(10,31,68,.05);
+    }
+    .demo-body {
+      padding: 20px;
+      display: flex; gap: 16px;
+    }
+    .mock-sidebar {
+      width: 180px; flex-shrink: 0;
+      border-right: 1px solid #D1D9E6;
+      padding: 12px 8px;
+    }
+    .mock-nav-item {
+      padding: 8px 12px; border-radius: 8px;
+      font-size: 13px; color: #4A5568;
+      margin-bottom: 2px;
+      cursor: default;
+    }
+    .mock-nav-item.active { background: #0A1F44; color: white; font-weight: 600; }
+    .mock-content { flex: 1; }
+    .mock-kpi-row { display: flex; gap: 12px; margin-bottom: 16px; }
+    .mock-kpi {
+      flex: 1; background: #F4F6F9; border: 1px solid #D1D9E6;
+      border-radius: 8px; padding: 12px; text-align: center;
+    }
+    .mock-kpi .val { font-size: 22px; font-weight: 700; color: #0A1F44; }
+    .mock-kpi .lbl { font-size: 10px; color: #4A5568; text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }
+    .mock-chart { background: #F4F6F9; border: 1px solid #D1D9E6; border-radius: 8px; height: 100px;
+      display: flex; align-items: center; justify-content: center; color: #C5CDD8; font-size: 13px; }
+
+    .highlight-box {
+      background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px;
+      padding: 12px 16px; margin-bottom: 24px; font-size: 13px; color: #1E40AF;
+    }
+    .highlight-box strong { font-weight: 700; }
+    .diff-list { margin: 8px 0 0 0; padding-left: 16px; }
+    .diff-list li { margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+
+<div class="demo-section" style="background:#F4F6F9; min-height:100vh">
+
+  <div class="highlight-box">
+    <strong>Demo comparativo de header</strong> — Abrí este archivo para ver el diseño nuevo vs el actual antes de aplicarlo.
+    <ul class="diff-list">
+      <li>Altura: <strong>90px → 48px</strong> (más espacio para el contenido)</li>
+      <li>Logo: <strong>70px → 32px</strong>, border-radius 18 → 8</li>
+      <li>App name: <strong>subtítulo debajo → inline</strong> con separador</li>
+      <li>Fondo: <strong>#0A1F44 → #0B1526</strong> (más oscuro, más contraste)</li>
+      <li>Botón Salir: <strong>borde recto → pill redondeado</strong></li>
+    </ul>
+  </div>
+
+  <!-- NUEVO -->
+  <div class="demo-label">✦ Nuevo (propuesto)</div>
+  <div class="demo-card">
+    <div class="header-new">
+      <div class="logo"><span>CFO</span></div>
+      <div class="brand">
+        <span class="cfotech">CFOTech</span>
+        <span class="it-tools">IT Tools</span>
+        <span class="separator">|</span>
+        <span class="app-name">Bandas Salariales DC</span>
+      </div>
+      <div class="spacer"></div>
+      <div class="right">
+        <div class="status">
+          <div class="dot"></div>
+          <span>Backend activo</span>
+        </div>
+        <button class="btn-salir">Salir</button>
+      </div>
+    </div>
+    <div class="demo-body">
+      <div class="mock-sidebar">
+        <div class="mock-nav-item active">📊 Dashboard</div>
+        <div class="mock-nav-item">📋 Tabla</div>
+        <div class="mock-nav-item">↔ Comparativo</div>
+        <div class="mock-nav-item">🔍 Empleado</div>
+      </div>
+      <div class="mock-content">
+        <div class="mock-kpi-row">
+          <div class="mock-kpi"><div class="val">95</div><div class="lbl">Empleados</div></div>
+          <div class="mock-kpi"><div class="val" style="color:#00875A">47%</div><div class="lbl">En Banda</div></div>
+          <div class="mock-kpi"><div class="val" style="color:#C96A00">47%</div><div class="lbl">Revisar</div></div>
+          <div class="mock-kpi"><div class="val" style="color:#4A5568">5%</div><div class="lbl">Sin Banda</div></div>
+        </div>
+        <div class="mock-chart">[ gráfico distribución ]</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTUAL -->
+  <div class="demo-label">◌ Actual (vigente)</div>
+  <div class="demo-card">
+    <div class="header-old">
+      <div class="logo"><span>CFO</span></div>
+      <div class="titles">
+        <div class="brand-big"><span class="ct">CFOTech</span><span class="it"> IT Tools</span></div>
+        <div class="sub">Bandas Salariales DC</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="right">
+        <div class="status"><div class="dot"></div><span>Backend online</span></div>
+        <button class="btn-salir">⏻ Salir</button>
+      </div>
+    </div>
+    <div class="demo-body">
+      <div class="mock-sidebar">
+        <div class="mock-nav-item active">📊 Dashboard</div>
+        <div class="mock-nav-item">📋 Tabla</div>
+        <div class="mock-nav-item">↔ Comparativo</div>
+        <div class="mock-nav-item">🔍 Empleado</div>
+      </div>
+      <div class="mock-content">
+        <div class="mock-kpi-row">
+          <div class="mock-kpi"><div class="val">95</div><div class="lbl">Empleados</div></div>
+          <div class="mock-kpi"><div class="val" style="color:#00875A">47%</div><div class="lbl">En Banda</div></div>
+          <div class="mock-kpi"><div class="val" style="color:#C96A00">47%</div><div class="lbl">Revisar</div></div>
+          <div class="mock-kpi"><div class="val" style="color:#4A5568">5%</div><div class="lbl">Sin Banda</div></div>
+        </div>
+        <div class="mock-chart">[ gráfico distribución ]</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

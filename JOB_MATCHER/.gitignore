@@ -1,0 +1,20 @@
+# Node
+node_modules/
+dist/
+.vite/
+
+# Variables de entorno — nunca commitear
+.env
+.env.local
+.env.*.local
+
+# Archivos generados en runtime
+backend/uploads/
+logs/
+templates/templates.json
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

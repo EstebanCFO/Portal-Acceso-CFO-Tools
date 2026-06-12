@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Bandas Salariales DC{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="mb-0 fw-bold">Dashboard</h4>
+    {% if ultimo %}
+      <small class="text-muted">Último snapshot: <strong>{{ ultimo.periodo }}</strong> · {{ ultimo.fecha_carga }}</small>
+    {% endif %}
+  </div>
+  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalUpload">
+    <i class="bi bi-cloud-upload me-2"></i>Cargar nuevo Excel
+  </button>
+</div>
+
+{% if not ultimo %}
+  <div class="alert alert-info">
+    <i class="bi bi-info-circle me-2"></i>
+    No hay datos cargados todavía. Subí el primer Excel con el botón de arriba.
+  </div>
+{% else %}
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center">
+        <div class="fs-2 fw-bold text-primary">{{ kpis.total }}</div>
+        <div class="text-muted small">Empleados</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
+      <div class="card-body text-center">
+        <div class="fs-2 fw-bold text-success">{{ kpis.pct_ok }}%</div>
+        <div class="text-muted small">En Banda</div>
+        <div class="text-success small fw-semibold">{{ kpis.ok }} personas</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 border-start border-4 border-warning">
+      <div class="card-body text-center">
+        <div class="fs-2 fw-bold text-warning">{{ kpis.pct_revisar }}%</div>
+        <div class="text-muted small">Revisar</div>
+        <div class="text-warning small fw-semibold">{{ kpis.revisar }} personas</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 border-start border-4 border-secondary">
+      <div class="card-body text-center">
+        <div class="fs-2 fw-bold text-secondary">{{ kpis.pct_sin }}%</div>
+        <div class="text-muted small">Sin Banda</div>
+        <div class="text-secondary small fw-semibold">{{ kpis.sin_banda }} personas</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center">
+        <div class="fs-5 fw-bold text-dark">{{ kpis.rem_avg }}</div>
+        <div class="text-muted small">Rem. Promedio</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body text-center">
+        <div class="fs-5 fw-bold text-dark">{{ kpis.fecha_carga }}</div>
+        <div class="text-muted small">Última Carga</div>
+        <div class="text-muted small fw-semibold">Período {{ kpis.periodo }}</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Barra de estado visual -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body py-2">
+    <div class="d-flex justify-content-between small text-muted mb-1">
+      <span>Distribución de estado (empleados con banda)</span>
+      <span>{{ kpis.ok + kpis.revisar }} con banda · {{ kpis.sin_banda }} sin banda</span>
+    </div>
+    <div class="progress" style="height: 20px; border-radius: 8px;">
+      <div class="progress-bar bg-success" style="width: {{ kpis.pct_ok }}%">
+        {{ kpis.pct_ok }}% OK
+      </div>
+      <div class="progress-bar bg-warning text-dark" style="width: {{ kpis.pct_revisar }}%">
+        {{ kpis.pct_revisar }}% Revisar
+      </div>
+      <div class="progress-bar bg-secondary" style="width: {{ kpis.pct_sin }}%">
+        Sin banda
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endif %}
+
+<!-- Historial de cargas -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-clock-history me-2 text-primary"></i>Cargas registradas
+  </div>
+  <div class="card-body p-0">
+    {% if imports %}
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>ID</th>
+          <th>Período</th>
+          <th>Fecha de carga</th>
+          <th>Registros</th>
+          <th>Archivo fuente</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for imp in imports %}
+        <tr>
+          <td><span class="badge bg-secondary">{{ imp.id }}</span></td>
+          <td><strong>{{ imp.periodo }}</strong></td>
+          <td>{{ imp.fecha_carga }}</td>
+          <td>{{ imp.total_registros }}</td>
+          <td><small class="text-muted">{{ imp.archivo_fuente }}</small></td>
+          <td>
+            <a href="{{ url_for('tabla', import_id=imp.id) }}" class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-table"></i> Ver tabla
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="text-center text-muted py-4">No hay importaciones aún.</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Modal Upload -->
+<div class="modal fade" id="modalUpload" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-cloud-upload me-2"></i>Cargar nuevo Excel</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
+        <div class="modal-body">
+          <div class="upload-area border border-2 border-dashed rounded-3 text-center p-5 mb-3"
+               id="uploadArea">
+            <i class="bi bi-file-earmark-excel display-4 text-success mb-3 d-block"></i>
+            <p class="mb-2 fw-semibold">Arrastrá el archivo aquí o hacé click para seleccionar</p>
+            <p class="text-muted small mb-3">Solo archivos .xlsx</p>
+            <input type="file" name="excel" id="fileInput" accept=".xlsx"
+                   class="d-none" required>
+            <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('fileInput').click()">
+              <i class="bi bi-folder2-open me-2"></i>Seleccionar archivo
+            </button>
+          </div>
+          <div id="fileInfo" class="alert alert-info d-none">
+            <i class="bi bi-file-earmark-check me-2"></i>
+            <span id="fileName"></span>
+          </div>
+          <div class="alert alert-light border small">
+            <i class="bi bi-info-circle me-2 text-primary"></i>
+            El período se extrae automáticamente del nombre del archivo
+            (ej: <em>"Bandas Salariales Julio 2026 - DC.xlsx"</em>).
+            Si el archivo ya fue importado hoy, se avisará sin duplicar.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btnImportar" disabled>
+            <i class="bi bi-upload me-2"></i>Importar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const fileInput = document.getElementById('fileInput');
+const fileInfo  = document.getElementById('fileInfo');
+const fileName  = document.getElementById('fileName');
+const btnImport = document.getElementById('btnImportar');
+const uploadArea = document.getElementById('uploadArea');
+
+fileInput.addEventListener('change', function() {
+  if (this.files.length > 0) {
+    fileName.textContent = this.files[0].name;
+    fileInfo.classList.remove('d-none');
+    btnImport.disabled = false;
+  }
+});
+
+// Drag & drop
+['dragenter','dragover'].forEach(ev =>
+  uploadArea.addEventListener(ev, e => { e.preventDefault(); uploadArea.classList.add('bg-primary','bg-opacity-10'); })
+);
+['dragleave','drop'].forEach(ev =>
+  uploadArea.addEventListener(ev, e => { e.preventDefault(); uploadArea.classList.remove('bg-primary','bg-opacity-10'); })
+);
+uploadArea.addEventListener('drop', e => {
+  const files = e.dataTransfer.files;
+  if (files.length > 0 && files[0].name.endsWith('.xlsx')) {
+    fileInput.files = files;
+    fileName.textContent = files[0].name;
+    fileInfo.classList.remove('d-none');
+    btnImport.disabled = false;
+  }
+});
+</script>
+{% endblock %}

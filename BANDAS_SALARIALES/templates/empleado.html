@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block title %}Empleado — Bandas Salariales DC{% endblock %}
+
+{% block content %}
+<h4 class="mb-3 fw-bold"><i class="bi bi-person-lines-fill me-2 text-primary"></i>Evolución por empleado</h4>
+
+<!-- Buscador con autocomplete -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-6">
+        <label class="form-label fw-semibold">Buscar empleado</label>
+        <div class="position-relative">
+          <input type="text" id="buscador" class="form-control"
+                 placeholder="Escribí apellido, nombre o CUIL..."
+                 value="{{ datos.apellidos ~ ' ' ~ datos.nombres if datos else '' }}"
+                 autocomplete="off">
+          <ul id="autocompleteList" class="list-group position-absolute w-100 shadow"
+              style="z-index:1000; display:none; top:100%"></ul>
+        </div>
+      </div>
+      <div class="col-auto">
+        <input type="hidden" id="cuilSeleccionado" value="{{ cuil }}">
+        <button class="btn btn-primary" id="btnBuscar">
+          <i class="bi bi-search me-2"></i>Ver historial
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if cuil and not datos %}
+  <div class="alert alert-warning">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    No se encontró el empleado con CUIL <strong>{{ cuil }}</strong>.
+  </div>
+{% endif %}
+
+{% if datos %}
+<!-- Card del empleado -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body">
+    <div class="row align-items-center">
+      <div class="col-auto">
+        <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
+             style="width:60px;height:60px">
+          <i class="bi bi-person-fill fs-3 text-primary"></i>
+        </div>
+      </div>
+      <div class="col">
+        <h5 class="mb-0 fw-bold">{{ datos.apellidos }}, {{ datos.nombres }}</h5>
+        <span class="badge bg-primary me-1">{{ datos.perfil }}</span>
+        <span class="badge bg-secondary">{{ datos.seniority }}</span>
+      </div>
+      <div class="col-md-4 text-md-end">
+        <div class="text-muted small">CUIL: <strong>{{ datos.cuil }}</strong></div>
+        <div class="text-muted small">DNI: <strong>{{ datos.dni or '—' }}</strong></div>
+        <div class="text-muted small">Ingreso: <strong>{{ datos.fecha_ingreso or '—' }}</strong></div>
+        <div class="text-muted small">CECO: <small>{{ datos.ceco or '—' }}</small></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if historial|length > 0 %}
+<!-- Gráfico de evolución -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-graph-up me-2 text-primary"></i>Evolución de remuneración
+  </div>
+  <div class="card-body">
+    <canvas id="chartRemun" height="80"></canvas>
+  </div>
+</div>
+
+<!-- Tabla historial -->
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-clock-history me-2 text-primary"></i>Historial de snapshots
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-hover table-sm mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Fecha</th>
+          <th>Período</th>
+          <th>Perfil</th>
+          <th>Sen.</th>
+          <th class="text-end">Remuneración</th>
+          <th class="text-end">Lím. Inf.</th>
+          <th class="text-end">Lím. Sup.</th>
+          <th class="text-center">Estado</th>
+          <th class="text-end">Var%</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in historial %}
+        <tr class="{% if h.estado_vs_inf == 'OK' %}table-success bg-opacity-25
+                   {% elif h.estado_vs_inf == 'REVISAR' %}table-warning bg-opacity-25{% endif %}">
+          <td>{{ h.fecha_carga }}</td>
+          <td><strong>{{ h.periodo }}</strong></td>
+          <td><small>{{ h.perfil or '—' }}</small></td>
+          <td><span class="badge bg-light text-dark border">{{ h.seniority or '—' }}</span></td>
+          <td class="text-end fw-semibold">
+            $ {{ "{:,.0f}".format(h.remuneracion).replace(",", ".") if h.remuneracion else "—" }}
+          </td>
+          <td class="text-end text-muted">
+            {{ ("$ {:,.0f}".format(h.lim_inferior)).replace(",",".") if h.lim_inferior else "—" }}
+          </td>
+          <td class="text-end text-muted">
+            {{ ("$ {:,.0f}".format(h.lim_superior)).replace(",",".") if h.lim_superior else "—" }}
+          </td>
+          <td class="text-center">
+            {% if h.estado_vs_inf == 'OK' %}
+              <span class="badge bg-success">OK</span>
+            {% elif h.estado_vs_inf == 'REVISAR' %}
+              <span class="badge bg-warning text-dark">Revisar</span>
+            {% else %}
+              <span class="badge bg-secondary">Sin banda</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            {% if h.var_pct == 'EN BANDA' %}
+              <span class="text-success fw-semibold">EN BANDA</span>
+            {% elif h.var_pct %}
+              <span class="{% if '-' in h.var_pct %}text-danger{% else %}text-success{% endif %}">
+                {{ h.var_pct }}
+              </span>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+  <div class="alert alert-info">
+    <i class="bi bi-info-circle me-2"></i>
+    Este empleado no tiene historial de snapshots en la base de datos.
+  </div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Autocomplete ──────────────────────────────────────────────────────────────
+const buscador  = document.getElementById('buscador');
+const lista     = document.getElementById('autocompleteList');
+const cuilInput = document.getElementById('cuilSeleccionado');
+let timer;
+
+buscador.addEventListener('input', function() {
+  clearTimeout(timer);
+  const q = this.value.trim();
+  if (q.length < 2) { lista.style.display = 'none'; return; }
+
+  timer = setTimeout(() => {
+    fetch(`/api/buscar-empleado?q=${encodeURIComponent(q)}`)
+      .then(r => r.json())
+      .then(data => {
+        lista.innerHTML = '';
+        if (!data.length) { lista.style.display = 'none'; return; }
+        data.forEach(e => {
+          const li = document.createElement('li');
+          li.className = 'list-group-item list-group-item-action py-2';
+          li.style.cursor = 'pointer';
+          li.innerHTML = `<strong>${e.apellidos}, ${e.nombres}</strong>
+            <small class="text-muted ms-2">${e.perfil} · ${e.seniority}</small>
+            <small class="text-muted d-block">${e.cuil}</small>`;
+          li.addEventListener('click', () => {
+            buscador.value  = `${e.apellidos} ${e.nombres}`;
+            cuilInput.value = e.cuil;
+            lista.style.display = 'none';
+          });
+          lista.appendChild(li);
+        });
+        lista.style.display = 'block';
+      });
+  }, 250);
+});
+
+document.addEventListener('click', e => {
+  if (!buscador.contains(e.target)) lista.style.display = 'none';
+});
+
+document.getElementById('btnBuscar').addEventListener('click', () => {
+  const cuil = cuilInput.value.trim();
+  if (cuil) window.location = `/empleado?cuil=${cuil}`;
+});
+
+// ── Gráfico Chart.js ──────────────────────────────────────────────────────────
+{% if historial %}
+const historialData = {{ historial | tojson }};
+
+const labels  = historialData.map(h => h.fecha_carga);
+const remuns  = historialData.map(h => h.remuneracion);
+const limInf  = historialData.map(h => h.lim_inferior);
+const limSup  = historialData.map(h => h.lim_superior);
+
+new Chart(document.getElementById('chartRemun'), {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [
+      {
+        label: 'Remuneración',
+        data: remuns,
+        borderColor: '#0d6efd',
+        backgroundColor: 'rgba(13,110,253,0.1)',
+        borderWidth: 2.5,
+        pointRadius: 5,
+        pointBackgroundColor: '#0d6efd',
+        fill: true,
+        tension: 0.3,
+      },
+      {
+        label: 'Límite inferior',
+        data: limInf,
+        borderColor: '#ffc107',
+        borderDash: [5,4],
+        borderWidth: 1.5,
+        pointRadius: 3,
+        fill: false,
+      },
+      {
+        label: 'Límite superior',
+        data: limSup,
+        borderColor: '#28a745',
+        borderDash: [5,4],
+        borderWidth: 1.5,
+        pointRadius: 3,
+        fill: false,
+      },
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'top' },
+      tooltip: {
+        callbacks: {
+          label: ctx => `${ctx.dataset.label}: $ ${Number(ctx.raw).toLocaleString('es-AR',{maximumFractionDigits:0})}`
+        }
+      }
+    },
+    scales: {
+      y: {
+        ticks: {
+          callback: v => '$ ' + Number(v).toLocaleString('es-AR',{maximumFractionDigits:0})
+        }
+      }
+    }
+  }
+});
+{% endif %}
+</script>
+{% endblock %}

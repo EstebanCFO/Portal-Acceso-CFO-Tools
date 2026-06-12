@@ -1,0 +1,20 @@
+# Node
+node_modules/
+dist/
+.vite/
+
+# .NET
+bin/
+obj/
+
+# Variables de entorno / secrets — nunca commitear
+.env
+.env.local
+appsettings.Development.json
+appsettings.*.json
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

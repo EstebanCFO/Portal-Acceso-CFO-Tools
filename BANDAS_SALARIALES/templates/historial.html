@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block title %}Comparativo — Bandas Salariales DC{% endblock %}
+
+{% block content %}
+<h4 class="mb-3 fw-bold"><i class="bi bi-arrow-left-right me-2 text-primary"></i>Comparativo entre períodos</h4>
+
+{% if snapshots|length < 2 %}
+  <div class="alert alert-info">
+    <i class="bi bi-info-circle me-2"></i>
+    Necesitás al menos <strong>2 períodos cargados</strong> para usar el comparativo.
+    Actualmente hay {{ snapshots|length }} snapshot{% if snapshots|length != 1 %}s{% endif %}.
+  </div>
+{% else %}
+
+<!-- Selectores -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">Período A (base)</label>
+        <select id="selectA" class="form-select">
+          {% for s in snapshots %}
+            <option value="{{ s.id }}" {% if s.id == id_a %}selected{% endif %}>
+              {{ s.periodo }} · {{ s.fecha_carga }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-1 text-center pt-3">
+        <i class="bi bi-arrow-right fs-4 text-muted"></i>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">Período B (nuevo)</label>
+        <select id="selectB" class="form-select">
+          {% for s in snapshots %}
+            <option value="{{ s.id }}" {% if s.id == id_b %}selected{% elif loop.first %}selected{% endif %}>
+              {{ s.periodo }} · {{ s.fecha_carga }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <button class="btn btn-primary w-100" id="btnComparar">
+          <i class="bi bi-search me-2"></i>Comparar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Resumen badges -->
+<div class="row g-3 mb-3" id="resumenComparativo" style="display:none!important">
+  <div class="col-auto">
+    <span class="badge bg-success fs-6 py-2 px-3">
+      <i class="bi bi-person-plus me-1"></i>
+      <span id="cntIngresos">0</span> ingresos
+    </span>
+  </div>
+  <div class="col-auto">
+    <span class="badge bg-danger fs-6 py-2 px-3">
+      <i class="bi bi-person-dash me-1"></i>
+      <span id="cntEgresos">0</span> egresos
+    </span>
+  </div>
+  <div class="col-auto">
+    <span class="badge bg-success bg-opacity-25 text-success fs-6 py-2 px-3 border border-success">
+      <i class="bi bi-arrow-up-circle me-1"></i>
+      <span id="cntMejoró">0</span> mejoraron estado
+    </span>
+  </div>
+  <div class="col-auto">
+    <span class="badge bg-warning bg-opacity-25 text-warning fs-6 py-2 px-3 border border-warning">
+      <i class="bi bi-arrow-down-circle me-1"></i>
+      <span id="cntEmpeoró">0</span> empeoraron estado
+    </span>
+  </div>
+</div>
+
+<!-- Tabla comparativa -->
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-0">
+    <table id="tablaComp" class="table table-hover table-sm mb-0 w-100">
+      <thead class="table-light">
+        <tr>
+          <th>Apellido</th>
+          <th>Nombres</th>
+          <th>Perfil</th>
+          <th>Sen.</th>
+          <th class="text-end">Rem. A</th>
+          <th class="text-end">Rem. B</th>
+          <th class="text-end">Variación</th>
+          <th class="text-center">Estado A</th>
+          <th class="text-center">Estado B</th>
+          <th class="text-center">Movimiento</th>
+        </tr>
+      </thead>
+      <tbody id="compBody"></tbody>
+    </table>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+let dtComp = null;
+
+function fmtMoneda(v) {
+  if (v == null) return '—';
+  return '$ ' + Number(v).toLocaleString('es-AR', {maximumFractionDigits:0});
+}
+
+function estadoBadge(e) {
+  if (!e) return '<span class="badge bg-secondary">Sin banda</span>';
+  if (e === 'OK')      return '<span class="badge bg-success">OK</span>';
+  if (e === 'REVISAR') return '<span class="badge bg-warning text-dark">Revisar</span>';
+  return `<span class="badge bg-light text-dark">${e}</span>`;
+}
+
+function movimientoBadge(mov) {
+  if (mov === 'ingreso') return '<span class="badge bg-success"><i class="bi bi-person-plus"></i> Ingreso</span>';
+  if (mov === 'egreso')  return '<span class="badge bg-danger"><i class="bi bi-person-dash"></i> Egreso</span>';
+  return '';
+}
+
+function rowColor(row) {
+  if (row.movimiento === 'ingreso') return 'table-success';
+  if (row.movimiento === 'egreso')  return 'table-danger';
+  if (row.estado_a === 'REVISAR' && row.estado_b === 'OK')      return 'table-success table-opacity-50';
+  if (row.estado_a === 'OK'      && row.estado_b === 'REVISAR') return 'table-warning table-opacity-50';
+  return '';
+}
+
+function varSpan(v) {
+  if (v == null) return '—';
+  const cls  = v < 0 ? 'text-danger' : v > 0 ? 'text-success' : 'text-muted';
+  const icon = v < 0 ? '▼' : v > 0 ? '▲' : '→';
+  return `<span class="${cls} fw-semibold">${icon} ${v > 0 ? '+' : ''}${v}%</span>`;
+}
+
+function comparar() {
+  const a = document.getElementById('selectA').value;
+  const b = document.getElementById('selectB').value;
+  if (a === b) { alert('Seleccioná períodos distintos.'); return; }
+
+  fetch(`/api/comparativo?a=${a}&b=${b}`)
+    .then(r => r.json())
+    .then(data => {
+      if (dtComp) { dtComp.destroy(); dtComp = null; }
+      const tbody = document.getElementById('compBody');
+      tbody.innerHTML = '';
+
+      let ingresos = 0, egresos = 0, mejoro = 0, empeoro = 0;
+
+      data.forEach(r => {
+        if (r.movimiento === 'ingreso') ingresos++;
+        if (r.movimiento === 'egreso')  egresos++;
+        if (r.estado_a === 'REVISAR' && r.estado_b === 'OK')      mejoro++;
+        if (r.estado_a === 'OK'      && r.estado_b === 'REVISAR') empeoro++;
+
+        const tr = document.createElement('tr');
+        tr.className = rowColor(r);
+        tr.innerHTML = `
+          <td class="fw-semibold">${r.apellidos || '—'}</td>
+          <td>${r.nombres || '—'}</td>
+          <td><small>${r.perfil || '—'}</small></td>
+          <td><span class="badge bg-light text-dark border">${r.seniority || '—'}</span></td>
+          <td class="text-end">${fmtMoneda(r.rem_a)}</td>
+          <td class="text-end fw-semibold">${fmtMoneda(r.rem_b)}</td>
+          <td class="text-end">${varSpan(r.variacion_pct)}</td>
+          <td class="text-center">${estadoBadge(r.estado_a)}</td>
+          <td class="text-center">${estadoBadge(r.estado_b)}</td>
+          <td class="text-center">${movimientoBadge(r.movimiento)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      dtComp = new DataTable('#tablaComp', {
+        pageLength: 25,
+        language: { url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/es-ES.json' },
+        order: [[0,'asc']],
+      });
+
+      // Actualizar resumen
+      document.getElementById('cntIngresos').textContent = ingresos;
+      document.getElementById('cntEgresos').textContent  = egresos;
+      document.getElementById('cntMejoró').textContent   = mejoro;
+      document.getElementById('cntEmpeoró').textContent  = empeoro;
+      document.getElementById('resumenComparativo').style.display = 'flex';
+      document.getElementById('resumenComparativo').style.removeProperty('display');
+    });
+}
+
+document.getElementById('btnComparar')?.addEventListener('click', comparar);
+
+// Auto-comparar si vienen params en la URL
+{% if id_a and id_b %}
+window.addEventListener('load', comparar);
+{% endif %}
+</script>
+{% endblock %}
