@@ -49,8 +49,10 @@ export const apiTestPlans = (org: string, proyecto: string) =>
   get<TestPlan[]>(`/api/testplans/${encodeURIComponent(org)}/${encodeURIComponent(proyecto)}`)
 
 // ── Sprints (current + anterior + futuros) ────────────────
+// Query params en lugar de path segments para evitar 404 con nombres
+// que tienen tildes u otros caracteres no-ASCII (ej: "Migración SUF a SICOT")
 export const apiSprints = (org: string, proyecto: string) =>
-  get<SprintsResult>(`/api/sprints/${encodeURIComponent(org)}/${encodeURIComponent(proyecto)}`)
+  get<SprintsResult>(`/api/sprints?org=${encodeURIComponent(org)}&project=${encodeURIComponent(proyecto)}`)
 
 // ── Historial & Logs ─────────────────────────────────────
 export const apiHistorial = () => get<PdfFile[]>('/api/historial')

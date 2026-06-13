@@ -565,10 +565,15 @@ def get_testplans(org_name, project_name):
         app_logger.error(f'ERROR testplans: {e}', exc_info=True); return jsonify([])
 
 
-@app.route('/api/sprints/<org_name>/<path:project_name>')
-def get_sprints(org_name, project_name):
+@app.route('/api/sprints')
+def get_sprints():
     """Sprint actual + anterior + futuros con work items y test plan progress.
-    Sigue la lógica del script PowerShell de referencia."""
+    Recibe org y project como query params para evitar problemas de routing
+    con caracteres no-ASCII en path segments (tildes, ñ, etc.)."""
+    org_name     = request.args.get('org',     '').strip()
+    project_name = request.args.get('project', '').strip()
+    if not org_name or not project_name:
+        return jsonify({'error': 'Parámetros org y project son requeridos'}), 400
     try:
         ref       = urlquote(project_name, safe='')
         iter_data = az_get(
