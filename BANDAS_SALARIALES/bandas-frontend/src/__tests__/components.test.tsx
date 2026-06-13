@@ -95,9 +95,12 @@ describe('UploadModal — abierto (open=true)', () => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 describe('UploadModal — zona de carga', () => {
-  it('muestra el ícono de upload ⬆', () => {
-    render(<UploadModal open onClose={noop} onSuccess={noop} />)
-    expect(screen.getByText('⬆')).toBeInTheDocument()
+  it('muestra el ícono de upload (SVG cloud-upload)', () => {
+    const { container } = render(<UploadModal open onClose={noop} onSuccess={noop} />)
+    // el icono es un SVG con aria-hidden; verificamos que la zona de upload existe
+    const zone = container.querySelector('.upload-zone')
+    expect(zone).toBeInTheDocument()
+    expect(zone?.querySelector('svg')).toBeInTheDocument()
   })
 
   it('muestra el texto "Arrastra el archivo o hace click"', () => {

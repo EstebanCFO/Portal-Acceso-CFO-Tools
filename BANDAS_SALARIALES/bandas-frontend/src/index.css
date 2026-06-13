@@ -153,7 +153,12 @@ button { font-family: inherit; }
 }
 .bs-nav-item:hover { background: var(--gray1); }
 .bs-nav-item.active { background: var(--navy); color: #fff; }
-.bs-nav-icon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
+.bs-nav-icon {
+  width: 18px; height: 18px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; opacity: .75;
+}
+.bs-nav-item.active .bs-nav-icon { opacity: 1; }
 
 /* Mobile hamburger */
 .bs-menu-btn {
@@ -277,13 +282,14 @@ button { font-family: inherit; }
 
 /* ── Badges / Chips ─────────────────────────────────────────────────────────── */
 .badge {
-  display: inline-flex; align-items: center; gap: 3px;
-  padding: 2px 9px;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px;
   border-radius: 20px;
   font-size: 11px; font-weight: 600;
-  line-height: 1.6;
+  line-height: 1.5;
   white-space: nowrap;
 }
+.badge svg { flex-shrink: 0; }
 .badge-success { background: var(--green-l); color: #085041; }
 .badge-warning { background: #FFF3E0; color: var(--orange); }
 .badge-error   { background: #FDECEA; color: var(--red); }
@@ -553,9 +559,7 @@ button { font-family: inherit; }
 .upload-zone:hover   { border-color: var(--navy); background: #EEF2F8; }
 .upload-zone.has-file { border-color: var(--green); background: var(--green-l); border-style: solid; }
 .upload-zone.loading  { cursor: default; opacity: .7; }
-.upload-icon  { font-size: 36px; margin-bottom: 8px; display: block; line-height: 1; }
-.upload-name  { font-weight: 600; font-size: 13px; color: var(--text); }
-.upload-check { font-size: 32px; color: var(--green); display: block; margin-bottom: 8px; }
+.upload-name  { font-weight: 600; font-size: 13px; color: var(--text); margin-bottom: 2px; }
 
 /* ── KPI grid / cards (Dashboard) ──────────────────────────────────────────── */
 .kpi-grid {

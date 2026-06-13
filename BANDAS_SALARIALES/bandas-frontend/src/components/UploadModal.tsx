@@ -82,13 +82,23 @@ export default function UploadModal({ open, onClose, onSuccess }: Props) {
             />
             {file ? (
               <>
-                <span className="upload-check">✓</span>
+                {/* CheckCircle icon */}
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor"
+                  style={{ color: 'var(--green)', display: 'block', margin: '0 auto 8px' }}
+                  aria-hidden="true">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
                 <p className="upload-name">{file.name}</p>
                 <p className="caption">{(file.size / 1024).toFixed(0)} KB · listo para importar</p>
               </>
             ) : (
               <>
-                <span className="upload-icon">⬆</span>
+                {/* CloudUpload icon */}
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor"
+                  style={{ color: 'var(--navy)', display: 'block', margin: '0 auto 8px' }}
+                  aria-hidden="true">
+                  <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+                </svg>
                 <p className="upload-name">Arrastra el archivo o hace click</p>
                 <p className="caption">Solo archivos .xlsx</p>
               </>

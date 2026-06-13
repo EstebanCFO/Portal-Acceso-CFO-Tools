@@ -52,7 +52,7 @@ export default function App() {
   // Baja TODOS los servidores corrientes antes de cerrar la pestaña.
   async function handleSalirPortal() {
     await stopAll()
-    window.close()
+    // No cerramos la pestaña — el usuario la cierra manualmente si quiere
   }
 
   // ── beforeunload — seguro de cierre ──────────────────────────────────────

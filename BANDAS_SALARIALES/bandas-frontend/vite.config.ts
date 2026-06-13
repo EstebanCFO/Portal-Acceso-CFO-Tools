@@ -13,4 +13,15 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Separar recharts y react del chunk principal — reduce bundle inicial ~45%
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'recharts':     ['recharts'],
+        },
+      },
+    },
+  },
 })

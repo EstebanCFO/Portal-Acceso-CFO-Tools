@@ -3,11 +3,7 @@ import { apiHealth } from '../api/client'
 
 type ApiStatus = 'checking' | 'online' | 'offline'
 
-interface Props {
-  onSalir: () => void
-}
-
-export default function Header({ onSalir }: Props) {
+export default function Header() {
   const [status, setStatus] = useState<ApiStatus>('checking')
 
   useEffect(() => {
@@ -58,11 +54,6 @@ export default function Header({ onSalir }: Props) {
         <div className={dotClass} />
         <span className="api-label">{label}</span>
       </div>
-
-      {/* Salir */}
-      <button className="btn-exit" onClick={onSalir}>
-        Salir
-      </button>
     </header>
   )
 }

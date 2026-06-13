@@ -5,36 +5,13 @@ import {
   launchApp,
   getLaunchStatus,
   type LaunchStatus,
-  type StepStatus,
 } from '../api/launcher'
 
 interface Props {
   app: App
 }
 
-// ── Sub-componente: fila de estado de un paso del lanzamiento ────────────────
-function LaunchStep({ label, status }: { label: string; status: StepStatus }) {
-  const statusText: Record<StepStatus, string> = {
-    idle:      'En espera',
-    pending:   'En espera',
-    launching: 'Iniciando…',
-    ready:     'Lista ✓',
-    error:     'Error ✕',
-  }
-  return (
-    <div className={`launch-step launch-step--${status}`}>
-      <span className="launch-step-icon">
-        {status === 'launching'
-          ? <span className="spinner-sm" />
-          : status === 'ready'  ? '✓'
-          : status === 'error'  ? '✕'
-          : '○'}
-      </span>
-      <span className="launch-step-label">{label}</span>
-      <span className="launch-step-status">{statusText[status]}</span>
-    </div>
-  )
-}
+// LaunchStep conservado solo para la lógica de estado — no se renderiza
 
 // ════════════════════════════════════════════════════════════════════════════
 // AppFrame principal
@@ -207,39 +184,13 @@ const AppFrame: FC<Props> = ({ app }) => {
   return (
     <div className="app-frame-wrap">
 
-      {/* Splash screen — tarjeta centrada estilo portal, visible desde el click */}
-      {launching && (
-        <div className="frame-launching">
-          <div className="launch-card">
-
-            <div className="frame-launching-icon">{app.icon}</div>
-            <h3>Iniciando {app.name}</h3>
-
-            {/* Pasos de lanzamiento — aparecen en cuanto el launcher responde */}
-            {launchInfo ? (
-              <div className="launch-steps">
-                <LaunchStep label={launchInfo.backendLabel}  status={launchInfo.backend} />
-                <LaunchStep label={launchInfo.frontendLabel} status={launchInfo.frontend} />
-              </div>
-            ) : (
-              <p className="launch-waiting">Conectando con los servidores…</p>
-            )}
-
-            {/* Reloj animado */}
-            <div className="launch-clock" aria-hidden="true">
-              <div className="launch-clock-hour" />
-              <div className="launch-clock-minute" />
-            </div>
-
+      {/* Pantalla de carga — solo el reloj animado, centrado */}
+      {(launching || (loading && !errored)) && (
+        <div className="frame-loading-only" aria-label="Cargando…" aria-live="polite">
+          <div className="launch-clock">
+            <div className="launch-clock-hour" />
+            <div className="launch-clock-minute" />
           </div>
-        </div>
-      )}
-
-      {/* Spinner post-launch mientras el iframe carga */}
-      {loading && !errored && !launching && (
-        <div className="frame-loading">
-          <div className="spinner" />
-          <span className="frame-loading-text">Cargando {app.name}…</span>
         </div>
       )}
 

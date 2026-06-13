@@ -144,10 +144,10 @@ describe('AppFrame — camino feliz', () => {
     expect(iframe?.src).toContain(APP_ACTIVE.url)
   })
 
-  it('muestra la pantalla "Iniciando" inmediatamente al montar', () => {
+  it('muestra el overlay de carga inmediatamente al montar', () => {
     const { container } = render(<AppFrame app={APP_ACTIVE} />)
-    // launching = true desde el inicio: la pantalla aparece sin esperar el preflight
-    expect(container.querySelector('.frame-launching')).toBeInTheDocument()
+    // launching = true desde el inicio: el overlay .frame-loading-only aparece de inmediato
+    expect(container.querySelector('.frame-loading-only')).toBeInTheDocument()
   })
 
   it('app type "link" renderiza botón "Abrir en nueva pestaña", sin iframe', () => {
@@ -258,13 +258,13 @@ describe('AppFrame — estados especiales', () => {
     expect(elems.length).toBeGreaterThan(0)
   })
 
-  it('al cambiar app, el estado vuelve a la pantalla "Iniciando"', () => {
+  it('al cambiar app, el estado vuelve al overlay de carga', () => {
     const { rerender, container } = render(<AppFrame app={APP_ACTIVE} />)
-    // Estado inicial: pantalla launching
-    expect(container.querySelector('.frame-launching')).toBeInTheDocument()
-    // Cambio de app → resetea a launching nuevamente
+    // Estado inicial: overlay visible
+    expect(container.querySelector('.frame-loading-only')).toBeInTheDocument()
+    // Cambio de app → resetea a launching → overlay vuelve a aparecer
     rerender(<AppFrame app={{ ...APP_ACTIVE, id: 'test-otro', url: 'http://localhost:9998' }} />)
-    expect(container.querySelector('.frame-launching')).toBeInTheDocument()
+    expect(container.querySelector('.frame-loading-only')).toBeInTheDocument()
   })
 })
 
@@ -306,7 +306,7 @@ describe('AppFrame — launcher disponible', () => {
     expect(vi.mocked(launchApp)).toHaveBeenCalledWith(APP_ACTIVE.id)
   })
 
-  it('la pantalla "Iniciando" permanece mientras el launcher trabaja (done=false)', async () => {
+  it('el overlay de carga permanece mientras el launcher trabaja (done=false)', async () => {
     vi.mocked(getLaunchStatus).mockResolvedValue({
       backend: 'launching', frontend: 'pending',
       done: false, error: null,
@@ -315,20 +315,20 @@ describe('AppFrame — launcher disponible', () => {
 
     const { container } = render(<AppFrame app={APP_ACTIVE} />)
 
-    // Pantalla iniciando visible de inmediato
-    expect(container.querySelector('.frame-launching')).toBeInTheDocument()
+    // Overlay visible de inmediato
+    expect(container.querySelector('.frame-loading-only')).toBeInTheDocument()
 
     // Avanzar: preflight timeout + dos polls
     await act(async () => { await vi.advanceTimersByTimeAsync(1600) })
     await act(async () => { await vi.advanceTimersByTimeAsync(900) })
     await act(async () => { await vi.advanceTimersByTimeAsync(900) })
 
-    // Launcher aún no terminó → pantalla launching sigue visible (ni offline)
-    expect(container.querySelector('.frame-launching')).toBeInTheDocument()
+    // Launcher aún no terminó → overlay sigue visible (ni offline)
+    expect(container.querySelector('.frame-loading-only')).toBeInTheDocument()
     expect(container.querySelector('.frame-offline')).not.toBeInTheDocument()
   })
 
-  it('cuando done=true, la pantalla "Iniciando" desaparece', async () => {
+  it('cuando done=true, el overlay persiste durante la carga del iframe y desaparece al onLoad', async () => {
     vi.mocked(getLaunchStatus).mockResolvedValue({
       backend: 'ready', frontend: 'ready',
       done: true, error: null,
@@ -337,16 +337,23 @@ describe('AppFrame — launcher disponible', () => {
 
     const { container } = render(<AppFrame app={APP_ACTIVE} />)
 
-    // Pantalla launching visible de inmediato
-    expect(container.querySelector('.frame-launching')).toBeInTheDocument()
+    // Overlay visible de inmediato (fase launching)
+    expect(container.querySelector('.frame-loading-only')).toBeInTheDocument()
 
     // Avanzar: preflight timeout (1500ms) + primer poll (800ms) + flush Promises
     await act(async () => { await vi.advanceTimersByTimeAsync(1600) })
     await act(async () => { await vi.advanceTimersByTimeAsync(900) })
 
-    // El launcher informó done:true → pantalla launching desaparece
-    expect(container.querySelector('.frame-launching')).not.toBeInTheDocument()
+    // done:true → launching=false, pero loading=true → overlay sigue presente
+    // El overlay unificado cubre tanto la fase launching como la carga del iframe
+    expect(container.querySelector('.frame-loading-only')).toBeInTheDocument()
     expect(container.querySelector('.frame-offline')).not.toBeInTheDocument()
+
+    // El iframe dispara onLoad → loading=false → overlay desaparece
+    const iframe = container.querySelector('iframe')!
+    await act(async () => { fireEvent.load(iframe) })
+
+    expect(container.querySelector('.frame-loading-only')).not.toBeInTheDocument()
   })
 
   it('cuando s.error es truthy, muestra pantalla offline', async () => {
@@ -362,9 +369,9 @@ describe('AppFrame — launcher disponible', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(1600) })
     await act(async () => { await vi.advanceTimersByTimeAsync(900) })
 
-    // Launcher reportó error → pantalla offline, no launching
+    // Launcher reportó error → pantalla offline, overlay ya no visible
     expect(container.querySelector('.frame-offline')).toBeInTheDocument()
-    expect(container.querySelector('.frame-launching')).not.toBeInTheDocument()
+    expect(container.querySelector('.frame-loading-only')).not.toBeInTheDocument()
   })
 })
 
@@ -515,44 +522,32 @@ describe('Header — botón Salir con onSalirPortal', () => {
 // AppFrame — tarjeta de lanzamiento (splash card)
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe('AppFrame — tarjeta de lanzamiento (splash card)', () => {
+describe('AppFrame — overlay de carga simplificado', () => {
   beforeEach(() => {
-    // fetch resuelve → no pasará por el launcher; solo verificamos el estado inicial
     vi.mocked(fetch).mockResolvedValue(new Response())
     vi.mocked(isLauncherAvailable).mockResolvedValue(false)
   })
 
-  it('la pantalla "Iniciando" contiene una .launch-card', () => {
+  it('el overlay .frame-loading-only contiene el reloj animado (.launch-clock)', () => {
     const { container } = render(<AppFrame app={APP_ACTIVE} />)
-    const launching = container.querySelector('.frame-launching')!
-    expect(launching).toBeInTheDocument()
-    expect(launching.querySelector('.launch-card')).toBeInTheDocument()
+    const overlay = container.querySelector('.frame-loading-only')!
+    expect(overlay).toBeInTheDocument()
+    expect(overlay.querySelector('.launch-clock')).toBeInTheDocument()
   })
 
-  it('la .launch-card muestra "Iniciando [nombre de la app]"', () => {
+  it('el overlay NO muestra texto de título ni pasos de lanzamiento', () => {
     render(<AppFrame app={APP_ACTIVE} />)
-    expect(screen.getByText(`Iniciando ${APP_ACTIVE.name}`)).toBeInTheDocument()
-  })
-
-  it('la .launch-card muestra .launch-waiting antes de recibir estado del launcher', () => {
-    const { container } = render(<AppFrame app={APP_ACTIVE} />)
-    expect(container.querySelector('.launch-waiting')).toBeInTheDocument()
-  })
-
-  it('la .launch-card contiene el reloj animado (.launch-clock)', () => {
-    const { container } = render(<AppFrame app={APP_ACTIVE} />)
-    const card = container.querySelector('.launch-card')!
-    expect(card.querySelector('.launch-clock')).toBeInTheDocument()
+    // Diseño simplificado: solo el reloj, sin card, sin labels
+    expect(screen.queryByText(`Iniciando ${APP_ACTIVE.name}`)).not.toBeInTheDocument()
   })
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
-// AppFrame — pasos de lanzamiento (launch-steps)
-// Usa fake timers para llegar al estado donde el launcher ya respondió y la
-// tarjeta muestra las filas de backend/frontend con su estado.
+// AppFrame — overlay durante lanzamiento: diseño simplificado (solo reloj)
+// Verifica que el overlay es limpio: sin pasos, sin labels, sin badge de estado.
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe('AppFrame — pasos de lanzamiento en la tarjeta', () => {
+describe('AppFrame — overlay durante lanzamiento (sin pasos visibles)', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.mocked(fetch).mockRejectedValue(new TypeError('Failed to fetch'))
@@ -561,7 +556,7 @@ describe('AppFrame — pasos de lanzamiento en la tarjeta', () => {
   })
   afterEach(() => { vi.useRealTimers() })
 
-  it('cuando el launcher responde, la tarjeta muestra .launch-steps con dos filas', async () => {
+  it('mientras el launcher trabaja NO se muestran .launch-step', async () => {
     vi.mocked(getLaunchStatus).mockResolvedValue({
       backend: 'launching', frontend: 'pending',
       done: false, error: null,
@@ -572,37 +567,22 @@ describe('AppFrame — pasos de lanzamiento en la tarjeta', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(1600) })
     await act(async () => { await vi.advanceTimersByTimeAsync(900) })
 
-    const steps = container.querySelectorAll('.launch-step')
-    expect(steps).toHaveLength(2)
+    // Diseño simplificado: los pasos de backend/frontend no se muestran en el overlay
+    expect(container.querySelectorAll('.launch-step')).toHaveLength(0)
   })
 
-  it('los labels de los pasos muestran los textos provistos por el launcher', async () => {
+  it('durante el lanzamiento el overlay sigue mostrando el .launch-clock', async () => {
     vi.mocked(getLaunchStatus).mockResolvedValue({
       backend: 'launching', frontend: 'pending',
       done: false, error: null,
-      backendLabel: 'API Node.js', frontendLabel: 'Frontend React',
-    })
-
-    render(<AppFrame app={APP_ACTIVE} />)
-    await act(async () => { await vi.advanceTimersByTimeAsync(1600) })
-    await act(async () => { await vi.advanceTimersByTimeAsync(900) })
-
-    expect(screen.getByText('API Node.js')).toBeInTheDocument()
-    expect(screen.getByText('Frontend React')).toBeInTheDocument()
-  })
-
-  it('paso con status "ready" tiene clase .launch-step--ready', async () => {
-    vi.mocked(getLaunchStatus).mockResolvedValue({
-      backend: 'ready', frontend: 'launching',
-      done: false, error: null,
-      backendLabel: 'Backend Flask', frontendLabel: 'Frontend React',
+      backendLabel: 'Backend', frontendLabel: 'Frontend',
     })
 
     const { container } = render(<AppFrame app={APP_ACTIVE} />)
     await act(async () => { await vi.advanceTimersByTimeAsync(1600) })
     await act(async () => { await vi.advanceTimersByTimeAsync(900) })
 
-    expect(container.querySelector('.launch-step--ready')).toBeInTheDocument()
+    expect(container.querySelector('.frame-loading-only .launch-clock')).toBeInTheDocument()
   })
 })
 
@@ -679,10 +659,10 @@ describe('AppFrame — modo embebido · por app activa', () => {
           expect(iframe.style.display).not.toBe('none')
         })
 
-        it('muestra la pantalla "Iniciando" al montar (launching inmediato)', () => {
+        it('muestra el overlay de carga al montar (launching inmediato)', () => {
           const { container } = render(<AppFrame app={app} />)
-          // El overlay .frame-launching aparece de inmediato, antes del preflight
-          expect(container.querySelector('.frame-launching')).toBeInTheDocument()
+          // El overlay .frame-loading-only aparece de inmediato, antes del preflight
+          expect(container.querySelector('.frame-loading-only')).toBeInTheDocument()
         })
 
       } else {

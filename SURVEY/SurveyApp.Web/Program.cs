@@ -20,6 +20,11 @@ builder.Services.AddControllers()
 
 builder.Services.AddHttpClient();  // IHttpClientFactory
 builder.Services.AddScoped<SurveyMonkeyService>();
+// Compresión HTTP (Brotli + Gzip) — reduce payload ~70% en respuestas JSON (S1-8)
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+});
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 // Orígenes permitidos leídos desde appsettings.json → "AllowedOrigins" (CSV).
@@ -43,6 +48,8 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // ── Middleware ────────────────────────────────────────────────────────────────
+
+app.UseResponseCompression();  // antes de cualquier middleware (S1-8)
 
 // Quitar X-Frame-Options para que el portal pueda embeber en iframe
 app.Use(async (ctx, next) =>

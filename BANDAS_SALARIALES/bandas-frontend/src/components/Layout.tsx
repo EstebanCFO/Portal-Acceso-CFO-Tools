@@ -8,12 +8,36 @@ import { IN_PORTAL } from '../App'
 const DRAWER_W   = 220
 const HDR_HEIGHT = 48
 
-const NAV = [
-  { to: '/',           label: 'Dashboard',   icon: '📊' },
-  { to: '/tabla',      label: 'Tabla',       icon: '📋' },
-  { to: '/historial',  label: 'Comparativo', icon: '⇄'  },
-  { to: '/empleado',   label: 'Empleado',    icon: '🔍' },
-] as const
+// ── SVG Nav Icons (18×18, Material Design paths, equivalentes a MUI icons) ────
+const IcoDashboard = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
+  </svg>
+)
+const IcoTable = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M10 10.02h5V21h-5zM17 21h3c1.1 0 2-.9 2-2v-9h-5v11zm3-18H5c-1.1 0-2 .9-2 2v3h19V5c0-1.1-.9-2-2-2zM3 19c0 1.1.9 2 2 2h3V10H3v9z"/>
+  </svg>
+)
+const IcoCompare = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="m9.01 14H2v2h7.01v3L13 15l-3.99-4v3zm5.98-1v-3H22V8h-7.01V5L11 9l3.99 4z"/>
+  </svg>
+)
+const IcoPerson = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+  </svg>
+)
+
+interface NavItem { to: string; label: string; Icon: () => JSX.Element }
+
+const NAV: NavItem[] = [
+  { to: '/',           label: 'Dashboard',   Icon: IcoDashboard },
+  { to: '/tabla',      label: 'Tabla',       Icon: IcoTable     },
+  { to: '/historial',  label: 'Comparativo', Icon: IcoCompare   },
+  { to: '/empleado',   label: 'Empleado',    Icon: IcoPerson    },
+]
 
 // ── BackendStatus ──────────────────────────────────────────────────────────────
 function BackendStatus() {
@@ -25,7 +49,7 @@ function BackendStatus() {
       catch { setStatus('offline') }
     }
     check()
-    const id = setInterval(check, 10_000)
+    const id = setInterval(check, 30_000)
     return () => clearInterval(id)
   }, [])
 
@@ -88,7 +112,7 @@ export default function Layout({ children }: Props) {
   // ── Nav items list ──────────────────────────────────────────────────────────
   const NavItems = () => (
     <nav style={{ paddingTop: 8 }}>
-      {NAV.map(({ to, label, icon }) => {
+      {NAV.map(({ to, label, Icon }) => {
         const active = location.pathname === to
         return (
           <Link
@@ -96,7 +120,7 @@ export default function Layout({ children }: Props) {
             to={to}
             className={`bs-nav-item${active ? ' active' : ''}`}
           >
-            <span className="bs-nav-icon">{icon}</span>
+            <span className="bs-nav-icon"><Icon /></span>
             {label}
           </Link>
         )
@@ -104,11 +128,18 @@ export default function Layout({ children }: Props) {
     </nav>
   )
 
-  // ── Portal mode: no header, no sidebar ────────────────────────────────────
+  // ── Portal mode: sidebar visible, header oculto (el portal tiene el suyo) ──
   if (IN_PORTAL) {
     return (
-      <div className="bs-root" style={{ display: 'block' }}>
-        <main className="bs-main portal-mode">{children}</main>
+      <div className="bs-root">
+        {/* Sidebar sin offset del header — empieza en top:0 */}
+        <aside className="bs-sidebar" style={{ top: 0, height: '100vh' }}>
+          <NavItems />
+        </aside>
+        {/* Main con margin-left pero sin margin-top (no hay header propio) */}
+        <main className="bs-main with-sidebar" style={{ marginTop: 0 }}>
+          {children}
+        </main>
       </div>
     )
   }

@@ -1,8 +1,8 @@
 """
 launcher_ui.py — Portal de Acceso CFOTech
-Ventana flotante informativa que reemplaza la consola DOS del START.bat.
-Arranca Portal Launcher (:4999) y Portal React (:5174) en background,
-muestra estado en tiempo real con el Design System CFOTech.
+Splash screen minimalista: spinner animado + "Iniciando Plataforma".
+Se cierra automáticamente cuando el portal levanta.
+Sin botones ni paneles de estado — la secuencia es invisible para el usuario.
 """
 
 import tkinter as tk
@@ -19,7 +19,6 @@ LAUNCHER_DIR = os.path.dirname(os.path.abspath(__file__))   # portal-launcher/
 BASE_DIR     = os.path.dirname(LAUNCHER_DIR)                # Portal de Acceso/
 
 # ── Config desde launcher/.env ────────────────────────────────────────────────
-# Leemos el mismo .env que usa launcher.py para obtener APP_HOST y PORTAL_PORT.
 _env_path = os.path.join(LAUNCHER_DIR, '.env')
 _ui_cfg: dict[str, str] = {}
 if os.path.exists(_env_path):
@@ -30,47 +29,22 @@ if os.path.exists(_env_path):
                 _k, _v = _l.split('=', 1)
                 _ui_cfg[_k.strip()] = _v.strip()
 
-LAUNCHER_PORT = int(_ui_cfg.get('PORT',         '4999'))
-APP_HOST      =     _ui_cfg.get('APP_HOST',     'localhost')
-PORTAL_PORT   = int(_ui_cfg.get('PORTAL_PORT',  '5174'))
+LAUNCHER_PORT = int(_ui_cfg.get('PORT',        '4999'))
+APP_HOST      =     _ui_cfg.get('APP_HOST',    'localhost')
+PORTAL_PORT   = int(_ui_cfg.get('PORTAL_PORT', '5174'))
 
-LAUNCHER_URL  = f'http://localhost:{LAUNCHER_PORT}'   # siempre local (mismo PC)
-PORTAL_URL    = f'http://{APP_HOST}:{PORTAL_PORT}'    # puede ser IP/dominio en red
+LAUNCHER_URL  = f'http://localhost:{LAUNCHER_PORT}'
+PORTAL_URL    = f'http://{APP_HOST}:{PORTAL_PORT}'
 
 # ── Design System tokens ──────────────────────────────────────────────────────
-C_HEADER    = '#0B1526'   # --navy-dark   header bg
-C_BORDER    = '#1C2E48'   # header border / window outline
-C_BODY      = '#F4F6F9'   # --gray1       body bg
-C_NAVY      = '#0A1F44'   # --navy        botón principal
-C_NAVY_HOV  = '#1B3F8A'   # hover primary
-C_GREEN_LOG = '#00A878'   # --logo-green  logo badge
-C_ACCENT    = '#4FD1B2'   # --green-a     subtitle + dot ready
+C_HEADER    = '#0B1526'
+C_BORDER    = '#1C2E48'
+C_BODY      = '#0D1B2A'   # fondo oscuro unificado para splash
+C_GREEN_LOG = '#00A878'
+C_ACCENT    = '#4FD1B2'
 C_WHITE     = '#FFFFFF'
-C_TEXT      = '#0D1B2A'   # --text
-C_TEXT2     = '#4A5568'   # --text2
-C_MUTED     = '#8898AA'
-C_DIVIDER   = '#E8ECF2'   # --gray2
-C_BORDER_W  = '#D1D9E6'   # --border
-
-# Estado → color del punto / etiqueta
-DOT_FG = {
-    'pending':   '#CBD5E0',
-    'launching': '#F6AD55',
-    'ready':     '#4FD1B2',
-    'error':     '#FC8181',
-}
-DOT_TXT = {
-    'pending':   'Pendiente',
-    'launching': 'Iniciando…',
-    'ready':     'Listo  ✓',
-    'error':     'Error  ✗',
-}
-DOT_TXT_FG = {
-    'pending':   '#A0AEC0',
-    'launching': '#C05621',
-    'ready':     '#2C7A7B',
-    'error':     '#C53030',
-}
+C_MUTED     = '#566C87'
+C_ERROR     = '#FC8181'
 
 
 # ── Helpers de proceso ────────────────────────────────────────────────────────
@@ -84,7 +58,6 @@ def _ping(url: str, timeout: float = 2.0) -> bool:
 
 
 def _kill_port(port: int) -> None:
-    """Termina cualquier proceso que esté escuchando en `port` (Windows)."""
     try:
         r = subprocess.run(
             f'netstat -ano | findstr :{port} | findstr LISTENING',
@@ -100,7 +73,6 @@ def _kill_port(port: int) -> None:
 
 
 def _run_proc(cmd: str, cwd: str) -> subprocess.Popen:
-    """Lanza un subproceso sin ventana de consola visible."""
     kw: dict = dict(cwd=cwd, shell=True,
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if sys.platform == 'win32':
@@ -112,331 +84,264 @@ def _run_proc(cmd: str, cwd: str) -> subprocess.Popen:
 
 class LauncherUI:
 
-    W, H     = 390, 320
-    HDR_H    = 52
-    POLL_MS  = 3_000   # intervalo de polling de salud (ms)
+    W, H    = 280, 210
+    HDR_H   = 46
+    SPIN_R  = 28          # radio del arco del spinner (px)
+    SPIN_MS = 25          # ms entre frames del spinner
+    SPIN_STEP = 9         # grados por frame
 
     def __init__(self):
-        self._procs: dict = {}
-        self._status = {'launcher': 'pending', 'portal': 'pending'}
-        self._alive  = True
-        self._drag   = (0, 0)
-        self._rows:  dict = {}    # { key: {'dot': Label, 'status': Label} }
+        self._procs:   dict = {}
+        self._alive    = True
+        self._drag     = (0, 0)
+        self._angle    = 0
+        self._spin_job = None
+        self._error    = False
 
         self.root = tk.Tk()
         self._configure_root()
         self._build_ui()
 
-        # Arrancar servicios en background
         threading.Thread(target=self._startup_sequence, daemon=True).start()
-        # Primer check de salud luego del delay inicial
-        self.root.after(self.POLL_MS, self._poll)
         self.root.mainloop()
 
-    # ── configuración de la ventana ──────────────────────────────────────────
+    # ── ventana ───────────────────────────────────────────────────────────────
 
     def _configure_root(self):
         r = self.root
         r.title('CFOTech IT Tools')
-        r.geometry(f'{self.W}x{self.H}')
         r.resizable(False, False)
-        r.overrideredirect(True)      # chrome propio (sin barra de título OS)
-        r.configure(bg=C_BORDER)      # borde de 1px via bg del root
-
-        # Centrar en pantalla
+        r.overrideredirect(True)
+        r.configure(bg=C_BORDER)
         r.update_idletasks()
         x = (r.winfo_screenwidth()  - self.W) // 2
         y = (r.winfo_screenheight() - self.H) // 2
         r.geometry(f'{self.W}x{self.H}+{x}+{y}')
 
-    # ── construcción de la UI ────────────────────────────────────────────────
+    # ── construcción UI ───────────────────────────────────────────────────────
 
     def _build_ui(self):
-        # Marco interno (deja el borde del root visible)
         wrap = tk.Frame(self.root, bg=C_BODY)
         wrap.pack(fill='both', expand=True, padx=1, pady=1)
 
         self._build_header(wrap)
         self._build_body(wrap)
 
-    # ── header ───────────────────────────────────────────────────────────────
-
     def _build_header(self, parent):
         hdr = tk.Frame(parent, bg=C_HEADER, height=self.HDR_H)
         hdr.pack(fill='x')
         hdr.pack_propagate(False)
+        for evt in ('<Button-1>', '<B1-Motion>'):
+            hdr.bind(evt, self._drag_start if '1>' in evt else self._drag_move)
         hdr.bind('<Button-1>',  self._drag_start)
         hdr.bind('<B1-Motion>', self._drag_move)
 
-        # ── Logo badge (32×32 verde, texto "CFO") ───────────────────────────
-        logo = tk.Frame(hdr, bg=C_GREEN_LOG, width=32, height=32)
-        logo.place(x=14, y=10)
+        # Logo badge
+        logo = tk.Frame(hdr, bg=C_GREEN_LOG, width=28, height=28)
+        logo.place(x=12, y=9)
         logo.pack_propagate(False)
-        lbl_cfo = tk.Label(logo, text='CFO', bg=C_GREEN_LOG, fg=C_WHITE,
-                           font=('Segoe UI', 8, 'bold'))
-        lbl_cfo.place(relx=0.5, rely=0.5, anchor='center')
-        for w in (logo, lbl_cfo):
+        lbl = tk.Label(logo, text='CFO', bg=C_GREEN_LOG, fg=C_WHITE,
+                       font=('Segoe UI', 7, 'bold'))
+        lbl.place(relx=.5, rely=.5, anchor='center')
+        for w in (logo, lbl):
             w.bind('<Button-1>',  self._drag_start)
             w.bind('<B1-Motion>', self._drag_move)
 
-        # ── Brand: "CFOTech  IT Tools" ───────────────────────────────────────
+        # Brand
         brand = tk.Frame(hdr, bg=C_HEADER)
-        brand.place(x=54, y=7)
+        brand.place(x=48, y=6)
         brand.bind('<Button-1>',  self._drag_start)
         brand.bind('<B1-Motion>', self._drag_move)
         tk.Label(brand, text='CFOTech', bg=C_HEADER, fg=C_WHITE,
-                 font=('Segoe UI', 13, 'bold')).pack(side='left')
-        tk.Label(brand, text='  IT Tools', bg=C_HEADER, fg=C_ACCENT,
                  font=('Segoe UI', 11, 'bold')).pack(side='left')
+        tk.Label(brand, text='  IT Tools', bg=C_HEADER, fg=C_ACCENT,
+                 font=('Segoe UI', 10, 'bold')).pack(side='left')
+        sub = tk.Label(hdr, text='Portal de Acceso', bg=C_HEADER,
+                       fg=C_MUTED, font=('Segoe UI', 7))
+        sub.place(x=49, y=28)
+        sub.bind('<Button-1>',  self._drag_start)
+        sub.bind('<B1-Motion>', self._drag_move)
 
-        tk.Label(hdr, text='Portal de Acceso', bg=C_HEADER,
-                 fg='#566C87', font=('Segoe UI', 8)).place(x=55, y=33)
-
-        # ── Botón cerrar ─────────────────────────────────────────────────────
-        close = tk.Label(hdr, text='✕', bg=C_HEADER, fg='#566C87',
-                         font=('Segoe UI', 13), cursor='hand2')
-        close.place(x=356, y=13)
+        # Botón cerrar
+        close = tk.Label(hdr, text='✕', bg=C_HEADER, fg=C_MUTED,
+                         font=('Segoe UI', 12), cursor='hand2')
+        close.place(x=self.W - 26, y=14)
         close.bind('<Button-1>', lambda _: self._on_close())
         close.bind('<Enter>',    lambda _: close.config(fg=C_WHITE))
-        close.bind('<Leave>',    lambda _: close.config(fg='#566C87'))
-
-    # ── body ─────────────────────────────────────────────────────────────────
+        close.bind('<Leave>',    lambda _: close.config(fg=C_MUTED))
 
     def _build_body(self, parent):
         body = tk.Frame(parent, bg=C_BODY)
         body.pack(fill='both', expand=True)
 
-        # Título sección
-        tk.Label(body, text='Estado de servicios', bg=C_BODY, fg=C_TEXT,
-                 font=('Segoe UI', 10, 'bold')
-                 ).pack(anchor='w', padx=20, pady=(16, 6))
+        # Canvas para el spinner
+        size = (self.SPIN_R + 8) * 2
+        self._canvas = tk.Canvas(body, width=size, height=size,
+                                 bg=C_BODY, highlightthickness=0)
+        self._canvas.pack(pady=(22, 0))
 
-        tk.Frame(body, bg=C_DIVIDER, height=1).pack(fill='x', padx=20)
+        # Título principal
+        tk.Label(body, text='Iniciando Plataforma',
+                 bg=C_BODY, fg=C_WHITE,
+                 font=('Segoe UI', 12, 'bold')
+                 ).pack(pady=(10, 0))
 
-        # Filas de servicio
-        for key, name, port in (
-            ('launcher', 'Portal Launcher', ':4999'),
-            ('portal',   'Portal React',    ':5174'),
-        ):
-            self._rows[key] = self._make_service_row(body, name, port)
+        # Texto de paso (step detail)
+        self.step_var = tk.StringVar(value='')
+        self.step_lbl = tk.Label(body, textvariable=self.step_var,
+                                 bg=C_BODY, fg=C_MUTED,
+                                 font=('Segoe UI', 8),
+                                 wraplength=240, justify='center')
+        self.step_lbl.pack(pady=(4, 0))
 
-        tk.Frame(body, bg=C_DIVIDER, height=1).pack(fill='x', padx=20, pady=(4, 0))
+        # Inicia animación del spinner
+        self._spin()
 
-        # Etiqueta de paso actual
-        self.step_var = tk.StringVar(value='Iniciando…')
-        tk.Label(body, textvariable=self.step_var,
-                 bg=C_BODY, fg=C_MUTED,
-                 font=('Segoe UI', 8), wraplength=350, justify='left',
-                 ).pack(anchor='w', padx=20, pady=5)
+    # ── spinner ───────────────────────────────────────────────────────────────
 
-        tk.Frame(body, bg=C_DIVIDER, height=1).pack(fill='x', padx=20, pady=(0, 10))
+    def _spin(self):
+        """Dibuja el arco rotante en el canvas. Llamado cada SPIN_MS ms."""
+        if not self._alive or self._error:
+            return
+        c  = self._canvas
+        r  = self.SPIN_R
+        m  = r + 8          # margen hasta el borde del canvas
+        x0, y0 = m - r, m - r
+        x1, y1 = m + r, m + r
 
-        # Botones
-        btns = tk.Frame(body, bg=C_BODY)
-        btns.pack(fill='x', padx=20)
+        c.delete('all')
 
-        self.btn_abrir = tk.Button(
-            btns, text='Abrir portal en navegador',
-            bg=C_NAVY, fg=C_WHITE, relief='flat', bd=0,
-            font=('Segoe UI', 10, 'bold'), cursor='hand2',
-            activebackground=C_NAVY_HOV, state='disabled',
-            command=self._open_browser, pady=8,
-        )
-        self.btn_abrir.pack(fill='x', pady=(0, 6))
+        # Pista (arco base, gris oscuro)
+        c.create_arc(x0, y0, x1, y1,
+                     start=0, extent=359,
+                     outline='#1C2E48', width=4, style='arc')
 
-        self.btn_detener = tk.Button(
-            btns, text='Detener todos los servicios',
-            bg=C_BODY, fg='#C53030', relief='flat', bd=0,
-            font=('Segoe UI', 9), cursor='hand2',
-            activebackground='#FFF5F5',
-            command=self._stop_all, pady=6,
-            highlightthickness=1, highlightbackground='#FEB2B2',
-        )
-        self.btn_detener.pack(fill='x')
+        # Arco animado (270° de apertura)
+        c.create_arc(x0, y0, x1, y1,
+                     start=self._angle, extent=270,
+                     outline=C_ACCENT, width=4, style='arc')
 
-        # Nota pie
-        tk.Label(body,
-                 text='Cerrar esta ventana no detiene los servicios.',
-                 bg=C_BODY, fg='#A0AEC0', font=('Segoe UI', 7),
-                 ).pack(side='bottom', pady=(4, 8))
+        self._angle = (self._angle - self.SPIN_STEP) % 360
+        self._spin_job = self.root.after(self.SPIN_MS, self._spin)
 
-    def _make_service_row(self, parent, name: str, port: str) -> dict:
-        """Crea una fila de estado para un servicio."""
-        row = tk.Frame(parent, bg=C_BODY)
-        row.pack(fill='x', padx=20, pady=7)
+    def _stop_spinner(self):
+        if self._spin_job:
+            self.root.after_cancel(self._spin_job)
+            self._spin_job = None
+        self._canvas.delete('all')
 
-        dot = tk.Label(row, text='●', bg=C_BODY, fg=DOT_FG['pending'],
-                       font=('Segoe UI', 18))
-        dot.pack(side='left')
-
-        info = tk.Frame(row, bg=C_BODY)
-        info.pack(side='left', padx=10)
-        tk.Label(info, text=name, bg=C_BODY, fg=C_TEXT,
-                 font=('Segoe UI', 10)).pack(anchor='w')
-        tk.Label(info, text=f'localhost{port}', bg=C_BODY, fg=C_TEXT2,
-                 font=('Segoe UI', 8)).pack(anchor='w')
-
-        status_lbl = tk.Label(row, text=DOT_TXT['pending'],
-                              bg=C_BODY, fg=DOT_TXT_FG['pending'],
-                              font=('Segoe UI', 9, 'bold'))
-        status_lbl.pack(side='right')
-
-        return {'dot': dot, 'status': status_lbl}
-
-    # ── drag ─────────────────────────────────────────────────────────────────
+    # ── drag ──────────────────────────────────────────────────────────────────
 
     def _drag_start(self, e):
         self._drag = (e.x_root - self.root.winfo_x(),
                       e.y_root - self.root.winfo_y())
 
     def _drag_move(self, e):
-        x = e.x_root - self._drag[0]
-        y = e.y_root - self._drag[1]
-        self.root.geometry(f'+{x}+{y}')
+        self.root.geometry(
+            f'+{e.x_root - self._drag[0]}+{e.y_root - self._drag[1]}')
 
-    # ── helpers de estado ─────────────────────────────────────────────────────
-
-    def _set_status(self, key: str, status: str):
-        """Actualiza estado y refresca la UI (thread-safe via after)."""
-        self._status[key] = status
-        self.root.after(0, self._refresh_row, key)
+    # ── helpers thread-safe ───────────────────────────────────────────────────
 
     def _set_step(self, text: str):
-        """Actualiza la etiqueta de paso actual (thread-safe)."""
         self.root.after(0, self.step_var.set, text)
 
-    def _refresh_row(self, key: str):
-        s   = self._status[key]
-        row = self._rows[key]
-        row['dot'].config(fg=DOT_FG.get(s, '#CBD5E0'))
-        row['status'].config(
-            text=DOT_TXT.get(s, s),
-            fg=DOT_TXT_FG.get(s, C_MUTED),
-        )
+    def _show_error(self, msg: str):
+        """Detiene spinner, muestra el error y un link para cerrar."""
+        def _draw():
+            self._error = True
+            self._stop_spinner()
+
+            # Dibujar X roja en el canvas
+            c = self._canvas
+            r = self.SPIN_R
+            m = r + 8
+            c.create_oval(m - r, m - r, m + r, m + r,
+                          outline=C_ERROR, width=3)
+            d = r * 0.55
+            c.create_line(m - d, m - d, m + d, m + d,
+                          fill=C_ERROR, width=2)
+            c.create_line(m + d, m - d, m - d, m + d,
+                          fill=C_ERROR, width=2)
+
+            self.step_var.set(msg)
+            self.step_lbl.config(fg=C_ERROR)
+
+            # Link para cerrar
+            close_lnk = tk.Label(self.root, text='Cerrar',
+                                  bg=C_BODY, fg=C_MUTED,
+                                  font=('Segoe UI', 8, 'underline'),
+                                  cursor='hand2')
+            close_lnk.pack(pady=(8, 0))
+            close_lnk.bind('<Button-1>', lambda _: self._on_close())
+
+        self.root.after(0, _draw)
 
     # ── secuencia de arranque ─────────────────────────────────────────────────
 
     def _startup_sequence(self):
         # 1. Liberar puertos
-        self._set_step(f'Liberando puertos {LAUNCHER_PORT} y {PORTAL_PORT}…')
+        self._set_step('Liberando puertos…')
         _kill_port(LAUNCHER_PORT)
         _kill_port(PORTAL_PORT)
         time.sleep(0.4)
 
-        # 2. pip install (silencioso)
-        self._set_step('Verificando dependencias Python…')
-        self._set_status('launcher', 'launching')
-        subprocess.run(
-            'pip install -r requirements.txt -q',
-            cwd=LAUNCHER_DIR, shell=True,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
+        # 2. pip install — solo si algún paquete requerido falta (S1-9)
+        self._set_step('Verificando dependencias…')
+        import importlib.util as _il
+        _pkgs = ['flask', 'flask_cors', 'requests']
+        if not all(_il.find_spec(p) is not None for p in _pkgs):
+            subprocess.run(
+                'pip install -r requirements.txt -q',
+                cwd=LAUNCHER_DIR, shell=True,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
 
-        # 3. Arrancar Portal Launcher (siempre en localhost — mismo PC)
-        self._set_step(f'Iniciando Portal Launcher (:{LAUNCHER_PORT})…')
+        # 3. Portal Launcher Flask
+        self._set_step('Iniciando servicios…')
         if not _ping(f'{LAUNCHER_URL}/api/health', 1):
             self._procs['launcher'] = _run_proc('python launcher.py', LAUNCHER_DIR)
 
         deadline = time.time() + 20
         while time.time() < deadline:
             if _ping(f'{LAUNCHER_URL}/api/health', 1):
-                self._set_status('launcher', 'ready')
                 break
             time.sleep(0.8)
         else:
-            self._set_status('launcher', 'error')
-            self._set_step(f'Error: Portal Launcher no respondió en 20 s.')
+            self._show_error('El servicio interno no respondió.\nReintentar o ejecutar START.bat manualmente.')
             return
 
         # 4. npm install si falta node_modules
-        self._set_status('portal', 'launching')
         if not os.path.isdir(os.path.join(BASE_DIR, 'node_modules')):
-            self._set_step('Instalando dependencias npm (primera vez, aguarda)…')
+            self._set_step('Instalando dependencias (primera vez)…')
             subprocess.run(
                 'npm install --silent',
                 cwd=BASE_DIR, shell=True,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
 
-        # 5. Arrancar Vite portal (Vite siempre escucha en localhost)
+        # 5. Portal Vite
+        self._set_step('')
         local_portal = f'http://localhost:{PORTAL_PORT}'
-        self._set_step(f'Iniciando Portal React + Vite (:{PORTAL_PORT})…')
         if not _ping(local_portal, 1):
             self._procs['portal'] = _run_proc('npm run dev', BASE_DIR)
 
         deadline = time.time() + 45
         while time.time() < deadline:
             if _ping(local_portal, 1):
-                self._set_status('portal', 'ready')
-                self._set_step(f'Portal listo — {PORTAL_URL}')
                 self.root.after(0, self._on_portal_ready)
                 return
             time.sleep(1)
 
-        self._set_status('portal', 'error')
-        self._set_step(f'Error: Portal no respondió en 45 s.')
+        self._show_error('El portal no respondió en el tiempo esperado.\nVerificar Node.js y ejecutar START.bat.')
 
     def _on_portal_ready(self):
-        """Habilita el botón Abrir y abre el browser automáticamente."""
-        self.btn_abrir.config(state='normal', bg=C_NAVY)
+        """Portal listo: abre el browser y cierra la ventana splash."""
         webbrowser.open(PORTAL_URL)
-
-    # ── health polling ────────────────────────────────────────────────────────
-
-    def _poll(self):
-        if not self._alive:
-            return
-        threading.Thread(target=self._check_health, daemon=True).start()
-
-    def _check_health(self):
-        local_portal = f'http://localhost:{PORTAL_PORT}'
-        l_ok = _ping(f'{LAUNCHER_URL}/api/health', 1.5)
-        p_ok = _ping(local_portal, 1.5)
-        if self._alive:
-            self.root.after(0, self._apply_health, l_ok, p_ok)
-
-    def _apply_health(self, launcher_ok: bool, portal_ok: bool):
-        if self._status['launcher'] == 'ready' and not launcher_ok:
-            self._set_status('launcher', 'error')
-            self._set_step(f'Advertencia: Launcher (:{LAUNCHER_PORT}) no responde.')
-        if self._status['portal'] == 'ready' and not portal_ok:
-            self._set_status('portal', 'error')
-            self._set_step(f'Advertencia: Portal (:{PORTAL_PORT}) no responde.')
-        if self._alive:
-            self.root.after(self.POLL_MS, self._poll)
-
-    # ── acciones ─────────────────────────────────────────────────────────────
-
-    def _open_browser(self):
-        webbrowser.open(PORTAL_URL)
-
-    def _stop_all(self):
-        self._set_step('Deteniendo servicios…')
-        # Pedir al launcher que detenga todas las apps
-        try:
-            req = urllib.request.Request(
-                f'{LAUNCHER_URL}/api/stop-all',
-                data=b'', method='POST')
-            urllib.request.urlopen(req, timeout=3)
-        except Exception:
-            pass
-        # Terminar procesos propios
-        for proc in self._procs.values():
-            if proc:
-                try:
-                    proc.terminate()
-                except Exception:
-                    pass
-        self._procs.clear()
-        _kill_port(LAUNCHER_PORT)
-        _kill_port(PORTAL_PORT)
-        self._set_status('launcher', 'pending')
-        self._set_status('portal',   'pending')
-        self._set_step('Servicios detenidos.')
-        self.root.after(0, lambda: self.btn_abrir.config(state='disabled'))
+        self._alive = False
+        self.root.destroy()
 
     def _on_close(self):
-        """Cierra solo la ventana. Los servicios siguen corriendo en background."""
+        """Cierra la ventana. Los servicios siguen corriendo en background."""
         self._alive = False
         self.root.destroy()
 

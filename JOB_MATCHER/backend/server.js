@@ -11,6 +11,7 @@ const fetch      = require('node-fetch');
 const pdfParse   = require('pdf-parse');
 const mammoth    = require('mammoth');
 const officeParser = require('officeparser');
+const compression  = require('compression');   // S1-7
 
 const app  = express();
 const PORT = process.env.PORT || 5002;
@@ -29,10 +30,11 @@ function logLine(level, module, msg) {
   var time = now.toISOString().slice(0, 19).replace('T', ' ');
   var line = '[' + time + '] ' + level.padEnd(5) + ' [' + module.padEnd(10) + '] ' + msg;
   console.log(line);
-  try {
-    var file = path.join(LOG_DIR, 'trace_' + date + '.log');
-    fs.appendFileSync(file, line + '\n', 'utf8');
-  } catch(e) { console.error('Log write error:', e.message); }
+  // appendFile async para no bloquear el event loop (S1-4)
+  var file = path.join(LOG_DIR, 'trace_' + date + '.log');
+  fs.appendFile(file, line + '\n', 'utf8', function(e) {
+    if (e) console.error('Log write error:', e.message);
+  });
 }
 
 function logTokens(module, direction, inputTk, outputTk) {
@@ -45,6 +47,7 @@ function logTokens(module, direction, inputTk, outputTk) {
 }
 
 // ── MIDDLEWARE ────────────────────────────────────────────────────────────
+app.use(compression());  // Gzip/Brotli — reduce payload hasta 70% en JSON (S1-7)
 // CORS: solo el propio frontend y el portal shell pueden llamar a esta API
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5002,http://localhost:5174').split(',');
 app.use(cors({ origin: CORS_ORIGINS }));
@@ -314,8 +317,10 @@ function crc32(buf) {
 // ══════════════════════════════════════════════════
 
 app.post('/upload', uploadDisk.single('file'), async (req, res) => {
+  // filePath fuera del try para garantizar cleanup en finally (S1-3)
+  var filePath = req.file ? req.file.path : null;
   try {
-    var filePath = req.file.path;
+    if (!req.file) throw new Error('No se recibió ningún archivo');
     var ext = path.extname(req.file.originalname).toLowerCase();
     var text = '';
     logLine('INFO ', 'Matcher   ', 'Upload: ' + req.file.originalname + ' (' + ext + ')');
@@ -333,7 +338,6 @@ app.post('/upload', uploadDisk.single('file'), async (req, res) => {
     } else {
       throw new Error('Formato no soportado');
     }
-    try { fs.unlinkSync(filePath); } catch(e) {}
     var skipWords = ['EDUCACION','EXPERIENCIA','CURRICULUM','CV','FORMACION','HABILIDADES','CONTACTO','DATOS','PERSONALES','PERFIL','OBJETIVO','RESUMEN','PROFESIONAL','LABORAL','ACADEMICA','IDIOMAS','REFERENCIAS','CERTIFICACIONES','PROYECTOS','INFORMACION','CONOCIMIENTOS','COMPETENCIAS','TECNOLOGIAS'];
     var lines = text.split('\n').filter(function(l){return l.trim();});
     var candidateName = lines.find(function(l){
@@ -349,6 +353,9 @@ app.post('/upload', uploadDisk.single('file'), async (req, res) => {
   } catch (error) {
     logLine('ERROR', 'Matcher   ', 'Upload error: ' + error.message);
     res.status(500).json({ success: false, error: error.message });
+  } finally {
+    // Garantiza limpieza del temp file aun si hubo error antes del unlink (S1-3)
+    if (filePath) { try { fs.unlinkSync(filePath); } catch(_) {} }
   }
 });
 

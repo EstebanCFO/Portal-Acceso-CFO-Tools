@@ -3,6 +3,28 @@ import { getSnapshots, getComparativo } from '../api/client'
 import { DS } from '../theme'
 import type { ImportacionRow, ComparativoRow } from '../types'
 
+// ── SVG icons para el resumen (equivalentes a MUI icons del app fuente) ────────
+const IcoPersonAdd = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+  </svg>
+)
+const IcoPersonRemove = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M14 8c0-2.21-1.79-4-4-4S6 5.79 6 8s1.79 4 4 4 4-1.79 4-4zm-2 0c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zM2 18v2h16v-2c0-2.66-5.33-4-8-4s-8 1.34-8 4zm18-3h-4v-2h4v2z"/>
+  </svg>
+)
+const IcoTrendingUp = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="m16 6 2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
+  </svg>
+)
+const IcoTrendingDown = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M16 18l2.29-2.29-4.88-4.88-4 4L2 7.41 3.41 6l6 6 4-4 6.3 6.29L22 12v6z"/>
+  </svg>
+)
+
 const fmtAR = (v: number | null | undefined) =>
   v == null ? '—' : '$ ' + Number(v).toLocaleString('es-AR', { maximumFractionDigits: 0 })
 
@@ -14,8 +36,8 @@ function EstadoBadge({ estado }: { estado: string | null | undefined }) {
 }
 
 function MovBadge({ mov }: { mov: ComparativoRow['movimiento'] }) {
-  if (mov === 'ingreso') return <span className="badge badge-success">+ Ingreso</span>
-  if (mov === 'egreso')  return <span className="badge badge-error">− Egreso</span>
+  if (mov === 'ingreso') return <span className="badge badge-success"><IcoPersonAdd /> Ingreso</span>
+  if (mov === 'egreso')  return <span className="badge badge-error"><IcoPersonRemove /> Egreso</span>
   return null
 }
 
@@ -169,10 +191,10 @@ export default function Historial() {
           {/* Summary chips */}
           {resumen && (
             <div className="flex-wrap gap-2 mb-3">
-              <span className="badge badge-success">+ {resumen.ingresos} ingresos</span>
-              <span className="badge badge-error">− {resumen.egresos} egresos</span>
-              <span className="badge badge-success">↑ {resumen.mejoro} mejoraron estado</span>
-              <span className="badge badge-warning">↓ {resumen.empeoro} empeoraron</span>
+              <span className="badge badge-success"><IcoPersonAdd /> {resumen.ingresos} ingresos</span>
+              <span className="badge badge-error"><IcoPersonRemove /> {resumen.egresos} egresos</span>
+              <span className="badge badge-success"><IcoTrendingUp /> {resumen.mejoro} mejoraron estado</span>
+              <span className="badge badge-warning"><IcoTrendingDown /> {resumen.empeoro} empeoraron</span>
             </div>
           )}
 

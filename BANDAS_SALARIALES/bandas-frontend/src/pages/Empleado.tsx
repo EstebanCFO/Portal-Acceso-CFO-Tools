@@ -49,6 +49,7 @@ export default function Empleado() {
   const [loading, setLoading] = useState(false)
   const [notFound, setNF]     = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     const c = searchParams.get('cuil')
@@ -59,10 +60,15 @@ export default function Empleado() {
     const v = e.target.value
     setQuery(v)
     clearTimeout(timerRef.current)
+    abortRef.current?.abort()              // cancela request anterior (S1-5)
     if (v.length < 2) { setSuggs([]); return }
     timerRef.current = setTimeout(async () => {
-      const { data } = await buscarEmpleados(v)
-      setSuggs(data)
+      const ctrl = new AbortController()
+      abortRef.current = ctrl
+      try {
+        const { data } = await buscarEmpleados(v)
+        if (!ctrl.signal.aborted) setSuggs(data)
+      } catch { /* descartado si fue abortado por nueva keystroke */ }
     }, 250)
   }
 
@@ -158,7 +164,11 @@ export default function Empleado() {
           <div className="card mb-3">
             <div className="card-body">
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-                <div className="avatar avatar-lg">👤</div>
+                <div className="avatar avatar-lg">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                  </svg>
+                </div>
                 <div style={{ flex: 1 }}>
                   <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>
                     {detalle.apellidos}, {detalle.nombres}

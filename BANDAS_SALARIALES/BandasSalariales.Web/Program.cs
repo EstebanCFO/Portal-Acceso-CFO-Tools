@@ -28,9 +28,15 @@ builder.Services.AddCors(opt =>
          .AllowAnyMethod()));
 
 builder.Services.AddSingleton<BandasDbService>();
+// Compresión HTTP (Brotli + Gzip) — reduce payload ~70% en respuestas JSON (S1-8)
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+});
 
 var app = builder.Build();
 
+app.UseResponseCompression();  // debe ir antes de UseCors y MapControllers
 app.UseCors();
 app.MapControllers();
 

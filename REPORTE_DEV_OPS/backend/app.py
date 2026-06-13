@@ -158,12 +158,14 @@ def ejecutar_scripts():
 # ── Middleware ───────────────────────────────────────────────
 @app.before_request
 def log_req():
-    app_logger.debug(f'REQUEST:  {request.method} {request.path} from {request.remote_addr}')
+    if app.debug:  # guard: no logear requests en producción (S1-10)
+        app_logger.debug(f'REQUEST:  {request.method} {request.path} from {request.remote_addr}')
 
 
 @app.after_request
 def log_res(response):
-    app_logger.debug(f'RESPONSE: {response.status_code} {request.method} {request.path}')
+    if app.debug:  # guard: no logear responses en producción (S1-10)
+        app_logger.debug(f'RESPONSE: {response.status_code} {request.method} {request.path}')
     return response
 
 
