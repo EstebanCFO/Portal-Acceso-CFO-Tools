@@ -7,9 +7,9 @@ Guía de contexto para futuras sesiones de Claude Code en este proyecto.
 ## ¿Qué es este proyecto?
 
 App web que consulta **Azure DevOps** en tiempo real y permite:
-- Visualizar métricas de proyectos (work items, épicas, user stories, avance %, sprints, headcount)
-- Ver desvíos de sprint con semáforo de alertas (OK / DESVÍO / RIESGO)
-- Ver estrategia de pruebas (test plans, suites, runs, pass rate)
+- Ver los **sprints activos** de cualquier proyecto: work items (total/abiertas/cerradas por estado) y test plan progress (casos definidos, test points corridos, pass rate)
+- Consultar el **sprint anterior** (PAST más reciente) con las mismas métricas
+- Ver **sprints futuros** planificados (nombre + fechas)
 - Generar un informe PDF consolidado de todas las orgs/proyectos
 - Descargar PDFs del historial de ejecuciones
 
@@ -44,6 +44,8 @@ REPORTE_DEV_OPS\
 │
 ├── backend\                         ── API Flask pura ──────────────────────────────
 │   ├── app.py                       ← Flask + flask-cors, todos los /api/*
+│   │                                   helpers: _wiql_post, get_resumen_sprint,
+│   │                                   get_tc_ids_por_iteracion, get_testplan_progress
 │   ├── extraccion.py                ← ETL: Azure DevOps → datos_raw.json
 │   ├── procesamiento.py             ← métricas + desvíos → datos_procesados.json
 │   ├── generar_pdf.py               ← PDF con ReportLab (paleta DS CFOTech)
@@ -63,14 +65,15 @@ REPORTE_DEV_OPS\
         ├── main.tsx
         ├── vite-env.d.ts
         ├── App.tsx                  ← Header + página principal
-        ├── index.css                ← variables DS + todos los estilos
-        ├── types.ts                 ← interfaces TS (Org, Proyecto, Detalle, TestPlan…)
+        ├── index.css                ← variables DS + todos los estilos (incl. sprint cards)
+        ├── types.ts                 ← interfaces TS — Org, Proyecto, SprintsResult,
+        │                               WorkItemsResumen, TestPlanProgress, SprintData…
         ├── api\
         │   └── client.ts            ← wrappers fetch tipados para todos /api/*
         ├── components\
         │   └── Header.tsx           ← DS Header 48px (logo, API status, Salir)
         └── pages\
-            └── ReporteDevOps.tsx    ← toda la lógica: orgs, proyectos, métricas, PDF, salir
+            └── ReporteDevOps.tsx    ← lógica principal: orgs→proyectos→Consultar→3 tarjetas
 ```
 
 ---
@@ -100,6 +103,44 @@ El Portal Launcher `:4999` maneja ambos procesos automáticamente.
 
 ---
 
+## Flujo de uso
+
+```
+App activa en el portal
+  → dropdown ORGANIZACIÓN: "Cargando..." (consulta Azure: perfil → cuentas del PAT)
+  → dropdown habilitado con todas las orgs del PAT
+
+Seleccionar ORGANIZACIÓN
+  → dropdown PROYECTOS: "Cargando..." (GET /api/proyectos/<org>)
+
+Seleccionar PROYECTO + clic [Consultar]
+  → spinner "Consultando Azure DevOps..."
+  → GET /api/sprints/<org>/<proyecto>
+  → aparecen las 3 tarjetas
+```
+
+---
+
+## Las 3 tarjetas de sprint
+
+### Tarjeta 1 — Sprint actual (CURRENT)
+- Badge verde **SPRINT ACTUAL** + nombre + fechas (inicio → fin)
+- Work items: total / abiertas (naranja) / cerradas (verde)
+- Detalle por estado: dot color + nombre + qty + barra de proporción
+- Test Plan:
+  - Nombre del plan (estrategia: match por nombre sprint → fallback ID más alto)
+  - Test Cases definidos en la iteración
+  - Test Points corridos N/total + progress bar %
+  - Pass Rate: pasados/corridos + progress bar (verde ≥80% / naranja ≥50% / rojo <50%)
+
+### Tarjeta 2 — Sprint anterior (PAST más reciente)
+- Badge naranja **SPRINT ANTERIOR** — misma estructura que Tarjeta 1
+
+### Tarjeta 3 — Sprints futuros (FUTURE)
+- Solo nombre + fechas por cada sprint planificado
+
+---
+
 ## Integración con el portal (iframe)
 
 ### IN_PORTAL detection
@@ -121,26 +162,19 @@ const handleSalir = async () => {
   if (saliendo) return
   setSaliendo(true)
   try { await apiSalir() } catch {}  // llama POST /api/salir (Flask shutdown)
+  const portalUrl = import.meta.env.VITE_PORTAL_URL ?? 'http://localhost:5174'
   window.parent.postMessage(
     { type: 'portal:goHome', appId: 'reporte-devops' },
-    'http://localhost:5174',
+    portalUrl,
   )
-  // El portal: llama launcher stop → mata :5000 y :5001 → vuelve al Dashboard
 }
 ```
 
-En modo standalone, el postMessage llega al mismo `window` (sin efecto visual) y la pestaña queda abierta — el usuario cierra manualmente. No se usa `window.close()` porque está bloqueado en contextos cross-origin.
-
 ### CORS del backend Flask
 ```python
-# app.py
-FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5001')
-CORS(app, origins=[FRONTEND_URL, 'http://localhost:5174'])
-```
-
-Variable en `.env`:
-```
-FRONTEND_URL=http://localhost:5001
+FRONTEND_URL  = os.getenv('FRONTEND_URL',  'http://localhost:5001')
+PORTAL_ORIGIN = os.getenv('PORTAL_ORIGIN', 'http://localhost:5174')
+CORS(app, origins=[FRONTEND_URL, PORTAL_ORIGIN])
 ```
 
 ---
@@ -152,12 +186,12 @@ FRONTEND_URL=http://localhost:5001
 | GET | `/api/health` | Health check — `{ ok: true }` |
 | POST | `/api/generar` | Inicia pipeline (extraccion → procesamiento → PDF) en hilo separado |
 | GET | `/api/estado` | Polling del estado (`corriendo`, `ok`, `error`) |
-| GET | `/api/organizaciones` | Lista inmediata desde `.env` |
-| GET | `/api/organizaciones/refresh` | Consulta dinámica a Azure DevOps API |
-| GET | `/api/proyectos/<org>` | Proyectos de una org |
+| GET | `/api/organizaciones` | Consulta Azure (perfil → cuentas del PAT). Fallback a `.env` si falla. |
+| GET | `/api/proyectos/<org>` | Proyectos de una org (hasta 200, excluye `PROYECTOS_EXCLUIDOS`) |
 | GET | `/api/proyecto_info/<org>/<proyecto>` | Iteraciones + headcount |
 | GET | `/api/proyecto/<org>/<proyecto>` | Métricas completas + desvíos de sprint |
 | GET | `/api/testplans/<org>/<proyecto>` | Planes, suites y runs de test |
+| **GET** | **`/api/sprints/<org>/<proyecto>`** | **Sprint actual + anterior + futuros con work items y test plan progress** |
 | GET | `/api/historial` | Lista de PDFs en `output/` (últimos 20) |
 | GET | `/api/logs` | Lista de trace logs (últimos 30) |
 | GET | `/api/logs/<nombre>` | Contenido de un log |
@@ -167,16 +201,65 @@ FRONTEND_URL=http://localhost:5001
 
 ---
 
+## Helpers de sprint (`app.py`)
+
+```python
+ESTADOS_CERRADOS = frozenset({
+    'Closed', 'Done', 'Resolved', 'Completed',
+    'Fixed', 'Removed', 'Resuelta', 'Finalizado',
+})
+```
+
+| Función | Qué hace |
+|---------|----------|
+| `_wiql_post(org, project_ref, query)` | WIQL con `charset=utf-8`. Sin filtro `[System.TeamProject]` — evita errores con tildes en nombres de proyecto |
+| `get_resumen_sprint(org, ref, iter_path)` | Work items de la iteración: total/abiertas/cerradas/estados. Batch de 200 IDs |
+| `get_tc_ids_por_iteracion(org, ref, iter_path)` | IDs de Test Cases de la iteración (para filtrar test points) |
+| `get_testplan_progress(org, ref, sprint_nombre, iter_path)` | Match plan por nombre → fallback ID más alto. Paginación via `x-ms-continuationtoken` |
+
+---
+
+## Tipos TypeScript principales (`src/types.ts`)
+
+```typescript
+// Sprint
+interface WorkItemsResumen {
+  total: number; abiertas: number; cerradas: number
+  estados: Record<string, number>
+}
+
+interface TestPlanProgress {
+  encontrado: boolean; planNombre: string; totalPlanes: number
+  total: number; corridos: number; pasados: number
+  pctCorridos: number; pctPass: number
+}
+
+interface SprintData {
+  nombre: string; path: string; inicio: string; fin: string
+  workitems: WorkItemsResumen
+  testplan: TestPlanProgress
+}
+
+interface SprintsResult {
+  current:  SprintData | null
+  anterior: SprintData | null
+  futuros:  Array<{ nombre: string; inicio: string; fin: string }>
+}
+```
+
+---
+
 ## Variables de entorno (`backend/.env`)
 
 | Variable | Descripción |
 |----------|-------------|
 | `AZURE_DEVOPS_PAT` | Personal Access Token de Azure DevOps |
-| `AZURE_DEVOPS_ORG` | URL de la org principal (fallback) |
-| `AZURE_DEVOPS_ORGS` | Lista CSV de nombres de org |
+| `AZURE_DEVOPS_ORG` | Org principal (fallback si API falla y no hay ORGS) |
+| `AZURE_DEVOPS_ORGS` | CSV de nombres de org (fallback si API falla) |
 | `OUTPUT_DIR` | Ruta absoluta donde se guardan los PDFs |
 | `PROYECTOS_EXCLUIDOS` | CSV de proyectos a omitir (case-insensitive) |
 | `FRONTEND_URL` | URL del frontend para CORS (`http://localhost:5001`) |
+| `PORTAL_ORIGIN` | URL del portal para CORS (`http://localhost:5174`) |
 
 ---
 
@@ -199,24 +282,14 @@ GET /api/estado (polling c/2s desde frontend)
 
 **Leer `DESIGN_SYSTEM.md` del portal antes de modificar cualquier pantalla.**
 
-### Cambios aplicados en la refactorización (vs original)
-
-| Elemento | Original (MS Fluent) | Nuevo (CFOTech DS) |
-|----------|---------------------|-------------------|
-| Header bg | `#004578` | `#0B1526` (--navy-dark) |
-| Header alto | 52px | **48px** |
-| Logo | verde oscuro 38px círculo | `#00A878` 32px r-8px "CFO" |
-| Body bg | `#F3F2F1` | `#F4F6F9` (--gray1) |
-| Card radius | 4px | **12px** |
-| Btn principal | `#0078D4` (MS Blue) | `#0A1F44` (--navy) |
-| Btn Salir | borde recto | **pill border-radius 20px** |
+Tokens clave usados en sprint cards: `--green` (cerradas/pass), `--orange` (abiertas/sprint anterior), `--red` (pass rate bajo), `--gray1` (fondo wi-card), `--navy` (tp-plan-name).
 
 ---
 
 ## Cómo extender
 
 ### Agregar una nueva org
-Editar `AZURE_DEVOPS_ORGS` en `.env`.
+Se carga automáticamente desde Azure. Si la API falla, editar `AZURE_DEVOPS_ORGS` en `.env`.
 
 ### Agregar un nuevo endpoint
 1. Agregar función en `app.py` con `@app.route('/api/nuevo')`
@@ -227,15 +300,13 @@ Editar `AZURE_DEVOPS_ORGS` en `.env`.
 1. Asegurarse que `procesamiento.py` lo calcule en `datos_procesados.json`
 2. Agregar columna en `generar_pdf.py` → `mk_table()`
 
-### Cambiar colores del PDF
-Todos los colores están en la sección `# DS CFOTech IT Tools` al inicio de `generar_pdf.py`.
-
 ---
 
 ## Logs
 
 Cada ejecución crea `logs/Trace_DD_MM_YYYY_HH_MM_SS.log`.
 Se listan en `/api/logs` y se leen en `/api/logs/<nombre>`.
+En el frontend: botón "Ver logs" en el pie de página (expandible).
 
 ---
 
@@ -245,6 +316,10 @@ Se listan en `/api/logs` y se leen en `/api/logs/<nombre>`.
 |-------|--------|
 | 2026-06-10 | v1: Refactorización desde `C:\CFOTechTools\InformeDevOps`. Design System CFOTech aplicado. |
 | 2026-06-10 | v2: Backend Flask API pura (`/backend`). Frontend React 18 + Vite 5 + TypeScript (`/frontend`). Proxy Vite `/api` → `:5000`. |
-| 2026-06-11 | **FASE 1 (portal):** Salir arreglado — `handleSalir` elimina `window.confirm()` / `window.close()` (bloqueados en iframe cross-origin). Ahora: `apiSalir()` + `postMessage({ type: 'portal:goHome' })`. Estado `saliendo` previene doble clic. |
+| 2026-06-11 | **FASE 1 (portal):** Salir arreglado — `handleSalir` elimina `window.confirm()` / `window.close()`. Ahora: `apiSalir()` + `postMessage({ type: 'portal:goHome' })`. |
 | 2026-06-11 | **FASE 2:** Upgrade React 18 → **19.2.7**, Vite 5 → **8.0.16**, @vitejs/plugin-react → **6.0.2**. |
 | 2026-06-12 | **FASE 5:** Tests añadidos. `vitest.config.ts` + `setup.ts` + `header.test.tsx` (17 tests) + `client.test.ts` (26 tests). **43/43** pasan. |
+| 2026-06-12 | **FASE 7 (hosted):** `VITE_PORTAL_URL` en frontend para postMessage. `PORTAL_ORIGIN` en backend para CORS. Sin localhost hardcodeado. |
+| 2026-06-12 | **Sprint 1 perf:** `if app.debug` guard en request logger Flask. |
+| 2026-06-12 | **UX dropdowns:** `/api/organizaciones` consulta Azure DevOps (perfil → cuentas) con fallback a `.env`. Orgs se cargan automáticamente al activarse la app. `/api/organizaciones/refresh` eliminado. Etiqueta "Proyecto" → "Proyectos". Botón [Consultar] a la derecha del dropdown de proyectos. `apiOrgsRefresh` eliminado de `client.ts`. Tests: **42/42** (−1 test de apiOrgsRefresh). |
+| 2026-06-12 | **Sprint cards:** Nuevo endpoint `GET /api/sprints/<org>/<proyecto>` con helpers WIQL, resumen work items y test plan progress (lógica fiel al script PS de referencia). Frontend: 3 tarjetas (sprint actual, sprint anterior, sprints futuros) reemplazan la vista de KPIs+tabs. Nuevas interfaces TypeScript + `apiSprints()`. Historial siempre visible al pie; logs expandibles. |
