@@ -172,6 +172,130 @@ public class SurveyMonkeyService
         );
     }
 
+    // ── Encuestas activas en un año (para el dropdown ENCUESTA) ──────────────
+
+    public async Task<SurveyForYearResponse> GetOpenSurveysForYearAsync(
+        int year, CancellationToken ct = default)
+    {
+        // Trae todas las encuestas OPEN (hasta 200 — para cuentas más grandes paginar)
+        var url = $"{_baseUrl}/surveys"
+                + "?status=open&per_page=200"
+                + "&include=response_count,date_created,date_modified";
+
+        var resp = await _http.GetAsync(url, ct);
+        resp.EnsureSuccessStatusCode();
+        var sm = await Deserialize<SmSurveyListResponse>(resp, ct);
+
+        // Filtra las que tienen actividad (date_modified) en el año pedido
+        var filtered = sm.Data
+            .Where(s => GetYear(s.DateModified) == year || GetYear(s.DateCreated) == year)
+            .Select(s => new SurveyForYearItem(s.Id, s.Title, FormatDateShort(s.DateModified)))
+            .OrderBy(s => s.Title)
+            .ToList();
+
+        return new SurveyForYearResponse(filtered, year);
+    }
+
+    // ── Reporte completo de una encuesta (collectors + stats + pendientes) ────
+
+    public async Task<SurveyReportResponse> GetSurveyReportAsync(
+        string surveyId, CancellationToken ct = default)
+    {
+        // 1. Metadatos de la encuesta (título, fecha de modificación)
+        var surveyUrl  = $"{_baseUrl}/surveys/{surveyId}?include=response_count";
+        var surveyResp = await _http.GetAsync(surveyUrl, ct);
+        surveyResp.EnsureSuccessStatusCode();
+        var survey = await Deserialize<SmSurveyItem>(surveyResp, ct);
+
+        // 2. Collectors con enviados/respondidos (include=sent,responded)
+        var collUrl  = $"{_baseUrl}/surveys/{surveyId}/collectors"
+                     + "?include=sent,responded&per_page=50";
+        var collResp = await _http.GetAsync(collUrl, ct);
+        collResp.EnsureSuccessStatusCode();
+        var collData = await Deserialize<SmCollectorListResponse>(collResp, ct);
+
+        // 3. Para cada email-collector: pendientes en paralelo
+        var tasks = collData.Data.Select(async c =>
+        {
+            var pending = new List<PendingRecipient>();
+            if (c.Type == "email")
+            {
+                try
+                {
+                    var rUrl  = $"{_baseUrl}/collectors/{c.Id}/recipients"
+                              + "?status=sent&per_page=100";
+                    var rResp = await _http.GetAsync(rUrl, ct);
+                    if (rResp.IsSuccessStatusCode)
+                    {
+                        var page = await Deserialize<SmRecipientPageResponse>(rResp, ct);
+                        pending = page.Data
+                            .Where(r => !string.IsNullOrWhiteSpace(r.Email))
+                            .Select(r => new PendingRecipient(r.Email, "Enviado"))
+                            .ToList();
+                    }
+                }
+                catch { /* pendientes queda vacío si falla */ }
+            }
+
+            return new CollectorReport(
+                CollectorId:   c.Id,
+                CollectorName: c.Type == "weblink"
+                                   ? "Sin collector email (weblink)"
+                                   : c.Name,
+                CollectorType: c.Type,
+                TypeLabel:     DeriveTypeLabel(c.Name, c.Type),
+                Sent:          c.Sent,
+                Responded:     c.Responded,
+                Pending:       pending
+            );
+        });
+
+        var collectors = (await Task.WhenAll(tasks)).ToList();
+
+        return new SurveyReportResponse(
+            SurveyId:       surveyId,
+            Title:          survey.Title,
+            DateModified:   FormatDateShort(survey.DateModified),
+            Collectors:     collectors,
+            TotalSent:      collectors.Sum(c => c.Sent),
+            TotalResponded: collectors.Sum(c => c.Responded),
+            TotalPending:   collectors.Sum(c => c.Pending.Count)
+        );
+    }
+
+    // ── Helpers privados ──────────────────────────────────────────────────────
+
+    /// <summary>Clasifica el collector por su nombre y tipo SM.</summary>
+    private static string DeriveTypeLabel(string name, string type)
+    {
+        if (type == "weblink") return "Weblink";
+        var lower = name.ToLowerInvariant();
+
+        // Patrón quincenal: "1ra_", "2da_", "1ra ", "2da ", "quincenal"
+        if (lower.StartsWith("1ra") || lower.StartsWith("2da") ||
+            lower.StartsWith("3ra") || lower.StartsWith("4ta") ||
+            lower.Contains("quincenal") || lower.Contains("semanal"))
+            return "Quincenal";
+
+        // Patrón mensual: contiene nombre de mes
+        string[] meses = ["enero","febrero","marzo","abril","mayo","junio",
+                          "julio","agosto","septiembre","octubre","noviembre","diciembre"];
+        if (meses.Any(m => lower.Contains(m))) return "Mensual";
+
+        return "Email";
+    }
+
+    private static int GetYear(string? isoDate) =>
+        DateTime.TryParse(isoDate, out var dt) ? dt.Year : 0;
+
+    private static string FormatDateShort(string? isoDate)
+    {
+        if (!DateTime.TryParse(isoDate, out var dt)) return "--";
+        string[] meses = ["ene","feb","mar","abr","may","jun",
+                          "jul","ago","sep","oct","nov","dic"];
+        return $"{dt.Day:D2}-{meses[dt.Month - 1]}-{dt.Year}";
+    }
+
     // ── Privado: rollups raw ───────────────────────────────────────────────────
 
     private async Task<List<SmQuestionRollup>> GetRollupsAsync(

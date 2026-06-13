@@ -9,11 +9,81 @@ public class SurveysController : ControllerBase
 {
     private readonly SurveyMonkeyService _sm;
     private readonly ILogger<SurveysController> _log;
+    private readonly IConfiguration _config;
 
-    public SurveysController(SurveyMonkeyService sm, ILogger<SurveysController> log)
+    public SurveysController(
+        SurveyMonkeyService sm,
+        ILogger<SurveysController> log,
+        IConfiguration config)
     {
-        _sm  = sm;
-        _log = log;
+        _sm     = sm;
+        _log    = log;
+        _config = config;
+    }
+
+    // GET /api/surveys/years
+    // Devuelve los años configurados en SurveyMonkey:Years (appsettings.json)
+    [HttpGet("years")]
+    public IActionResult GetYears()
+    {
+        var years = _config
+            .GetSection("SurveyMonkey:Years")
+            .Get<List<int>>()
+            ?? [DateTime.Now.Year];
+        return Ok(years);
+    }
+
+    // GET /api/surveys/for-year?year=2026
+    // Devuelve las encuestas OPEN con actividad en el año indicado
+    [HttpGet("for-year")]
+    public async Task<IActionResult> GetSurveysForYear(
+        [FromQuery] int year, CancellationToken ct)
+    {
+        if (year < 2000 || year > 2100)
+            return BadRequest(new { error = "Año inválido." });
+        try
+        {
+            var result = await _sm.GetOpenSurveysForYearAsync(year, ct);
+            return Ok(result);
+        }
+        catch (HttpRequestException ex)
+        {
+            _log.LogError(ex, "Error obteniendo encuestas para {Year}", year);
+            return ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized =>
+                    Unauthorized(new { error = "Token de SurveyMonkey inválido o vencido." }),
+                System.Net.HttpStatusCode.TooManyRequests =>
+                    StatusCode(429, new { error = "Límite de requests alcanzado. Intentar en unos minutos." }),
+                _ => StatusCode(502, new { error = $"Error de SurveyMonkey: {ex.StatusCode}" })
+            };
+        }
+    }
+
+    // GET /api/surveys/{id}/report
+    // Devuelve collectors + enviados/respondidos/pendientes de una encuesta
+    [HttpGet("{id}/report")]
+    public async Task<IActionResult> GetReport(string id, CancellationToken ct)
+    {
+        try
+        {
+            var result = await _sm.GetSurveyReportAsync(id, ct);
+            return Ok(result);
+        }
+        catch (HttpRequestException ex)
+        {
+            _log.LogError(ex, "Error generando reporte para survey {Id}", id);
+            return ex.StatusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized =>
+                    Unauthorized(new { error = "Token de SurveyMonkey inválido o vencido." }),
+                System.Net.HttpStatusCode.NotFound =>
+                    NotFound(new { error = $"Survey {id} no encontrado." }),
+                System.Net.HttpStatusCode.TooManyRequests =>
+                    StatusCode(429, new { error = "Límite de requests alcanzado. Intentar en unos minutos." }),
+                _ => StatusCode(502, new { error = $"Error de SurveyMonkey: {ex.StatusCode}" })
+            };
+        }
     }
 
     // GET /api/surveys

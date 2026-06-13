@@ -513,3 +513,236 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   color: var(--text2);
 }
 .sv-empty-icon { font-size: 40px; display: block; margin-bottom: 12px; }
+.sv-empty-sub  { font-size: 12px; color: var(--text3); margin-top: 4px; }
+
+/* ── Toolbar (AÑO + ENCUESTA + Consultar) ─────────────────────── */
+.sv-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.sv-toolbar-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+  white-space: nowrap;
+}
+
+.sv-sel {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--gray1);
+  outline: none;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.sv-sel:focus   { border-color: var(--navy); }
+.sv-sel:disabled { opacity: .55; cursor: default; }
+.sv-sel-year   { min-width: 90px; }
+.sv-sel-survey { flex: 1; min-width: 220px; max-width: 460px; }
+
+.sv-btn-consultar {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Welcome card ─────────────────────────────────────────────── */
+.sv-welcome-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 48px 40px;
+  text-align: center;
+}
+.sv-welcome-icon  { font-size: 40px; margin-bottom: 12px; }
+.sv-welcome-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 8px;
+}
+.sv-welcome-sub {
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.6;
+}
+
+/* ── Survey report header ─────────────────────────────────────── */
+.sv-report-survey-header {
+  margin-bottom: 16px;
+}
+.sv-report-survey-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--navy);
+}
+.sv-report-survey-meta {
+  font-size: 12px;
+  color: var(--text2);
+  margin-top: 3px;
+}
+
+/* ── Report KPIs (4 columnas) ─────────────────────────────────── */
+.sv-report-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+@media (max-width: 600px) {
+  .sv-report-kpis { grid-template-columns: repeat(2, 1fr); }
+}
+
+.sv-report-kpi {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sv-report-kpi-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--navy);
+  line-height: 1;
+}
+.sv-report-kpi-value.green  { color: var(--green); }
+.sv-report-kpi-value.orange { color: var(--orange); }
+.sv-report-kpi-label {
+  font-size: 11px;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+/* ── Collector card ───────────────────────────────────────────── */
+.sv-collector-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 12px;
+}
+
+.sv-collector-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.sv-collector-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ── Estadísticas del collector ───────────────────────────────── */
+.sv-collector-stats {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.sv-stat {
+  background: var(--gray1);
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 80px;
+}
+.sv-stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--navy);
+  line-height: 1;
+}
+.sv-stat-value.green  { color: var(--green); }
+.sv-stat-value.orange { color: var(--orange); }
+.sv-stat-label {
+  font-size: 10px;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+/* ── Pendientes ───────────────────────────────────────────────── */
+.sv-pending-section {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.sv-pending-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 8px;
+}
+.sv-pending-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sv-pending-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sv-pending-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--orange);
+  flex-shrink: 0;
+}
+.sv-pending-email {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--text);
+}
+.sv-pending-status {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--orange);
+  background: var(--orange-l);
+  border-radius: 4px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+
+/* ── Badges de tipo de collector ─────────────────────────────── */
+.sv-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.sv-badge-mensual   { background: var(--green-l);   color: var(--green);  }
+.sv-badge-quincenal { background: #EEF2F8;           color: var(--navy);   }
+.sv-badge-weblink   { background: var(--gray2);      color: var(--text2);  }
+.sv-badge-email     { background: #EEF2F8;            color: var(--navy2);  }

@@ -157,3 +157,62 @@ public class SmChoiceRollup
     [JsonPropertyName("represented")]
     public string Represented { get; set; } = "0.00%";
 }
+
+// ── Collectors ───────────────────────────────────────────────────────────────
+
+public class SmCollectorListResponse
+{
+    [JsonPropertyName("data")]
+    public List<SmCollector> Data { get; set; } = [];
+
+    [JsonPropertyName("total")]
+    public int Total { get; set; }
+}
+
+public class SmCollector
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    // "email" | "weblink" | "offline"
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "";
+
+    // "open" | "closed"
+    [JsonPropertyName("status")]
+    public string Status { get; set; } = "";
+
+    // Disponibles al usar ?include=sent,responded
+    [JsonPropertyName("sent")]
+    public int Sent { get; set; }
+
+    [JsonPropertyName("responded")]
+    public int Responded { get; set; }
+}
+
+// ── Recipients ───────────────────────────────────────────────────────────────
+
+public class SmRecipientPageResponse
+{
+    [JsonPropertyName("data")]
+    public List<SmRecipient> Data { get; set; } = [];
+
+    [JsonPropertyName("total")]
+    public int Total { get; set; }
+}
+
+public class SmRecipient
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("email")]
+    public string Email { get; set; } = "";
+
+    // "sent" | "started" | "completed" | "bounced" | "opted_out" | "removed"
+    [JsonPropertyName("status")]
+    public string Status { get; set; } = "";
+}

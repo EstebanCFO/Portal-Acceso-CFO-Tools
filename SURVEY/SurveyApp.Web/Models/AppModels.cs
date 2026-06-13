@@ -70,6 +70,36 @@ public record ChoiceResult(
     string RepresentedLabel
 );
 
+// ── Survey year selector (GET /api/surveys/for-year) ─────────────────────────
+
+public record SurveyForYearItem(string Id, string Title, string DateModified);
+
+public record SurveyForYearResponse(List<SurveyForYearItem> Surveys, int Year);
+
+// ── Survey report (GET /api/surveys/{id}/report) ──────────────────────────────
+
+public record PendingRecipient(string Email, string Status);
+
+public record CollectorReport(
+    string CollectorId,
+    string CollectorName,
+    string CollectorType,   // "email" | "weblink"
+    string TypeLabel,       // "Mensual" | "Quincenal" | "Weblink" | "Email"
+    int Sent,
+    int Responded,
+    List<PendingRecipient> Pending
+);
+
+public record SurveyReportResponse(
+    string SurveyId,
+    string Title,
+    string DateModified,
+    List<CollectorReport> Collectors,
+    int TotalSent,
+    int TotalResponded,
+    int TotalPending
+);
+
 // ── Health ────────────────────────────────────────────────────────────────────
 
 public record HealthResponse(bool Ok, string Message = "Survey API running");
