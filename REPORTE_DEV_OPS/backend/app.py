@@ -190,48 +190,52 @@ def get_estado():
 
 
 # ── Organizaciones ───────────────────────────────────────────
+def _fetch_orgs_from_azure() -> list:
+    """Consulta Azure DevOps API para obtener todas las orgs del PAT.
+    Devuelve lista de {'nombre', 'url'} ordenada alfabéticamente.
+    Lanza Exception si falla la llamada."""
+    r_perfil = requests.get(
+        'https://app.vssps.visualstudio.com/_apis/profile/profiles/me?api-version=7.1',
+        headers=HDR, timeout=20,
+    )
+    if r_perfil.status_code != 200:
+        raise Exception(f'Perfil HTTP {r_perfil.status_code}')
+    user_id = r_perfil.json().get('id')
+    if not user_id:
+        raise Exception('Sin user_id en perfil')
+    r_orgs = requests.get(
+        f'https://app.vssps.visualstudio.com/_apis/accounts?memberId={user_id}&api-version=7.1',
+        headers=HDR, timeout=20,
+    )
+    if r_orgs.status_code != 200:
+        raise Exception(f'Cuentas HTTP {r_orgs.status_code}')
+    return sorted(
+        [{'nombre': o['accountName'], 'url': f'https://dev.azure.com/{o["accountName"]}'}
+         for o in r_orgs.json().get('value', [])],
+        key=lambda x: x['nombre'].lower(),
+    )
+
+
 @app.route('/api/organizaciones')
 def get_organizaciones():
-    orgs_env = os.getenv('AZURE_DEVOPS_ORGS', '')
-    org_base = os.getenv('AZURE_DEVOPS_ORG', '')
-    if orgs_env:
-        nombres = [o.strip() for o in orgs_env.split(',') if o.strip()]
-    elif org_base:
-        nombres = [org_base.rstrip('/').split('/')[-1]]
-    else:
-        nombres = []
-    app_logger.info(f'GET organizaciones (env): {len(nombres)} orgs')
-    return jsonify([{'nombre': n, 'url': f'https://dev.azure.com/{n}'} for n in nombres])
-
-
-@app.route('/api/organizaciones/refresh')
-def refresh_organizaciones():
+    """Consulta Azure DevOps al activarse la app.
+    Fallback a AZURE_DEVOPS_ORGS/.env si la API no responde."""
     try:
-        r_perfil = requests.get(
-            'https://app.vssps.visualstudio.com/_apis/profile/profiles/me?api-version=7.1',
-            headers=HDR, timeout=20,
-        )
-        if r_perfil.status_code != 200:
-            raise Exception(f'Perfil HTTP {r_perfil.status_code}')
-        user_id = r_perfil.json().get('id')
-        if not user_id:
-            raise Exception('Sin user_id')
-        r_orgs = requests.get(
-            f'https://app.vssps.visualstudio.com/_apis/accounts?memberId={user_id}&api-version=7.1',
-            headers=HDR, timeout=20,
-        )
-        if r_orgs.status_code != 200:
-            raise Exception(f'Cuentas HTTP {r_orgs.status_code}')
-        orgs = sorted(
-            [{'nombre': o['accountName'], 'url': f'https://dev.azure.com/{o["accountName"]}'}
-             for o in r_orgs.json().get('value', [])],
-            key=lambda x: x['nombre'].lower(),
-        )
-        app_logger.info(f'Refresh organizaciones: {len(orgs)} encontradas')
-        return jsonify({'ok': True, 'orgs': orgs, 'total': len(orgs)})
+        orgs = _fetch_orgs_from_azure()
+        app_logger.info(f'GET organizaciones (Azure API): {len(orgs)} orgs')
+        return jsonify(orgs)
     except Exception as e:
-        app_logger.warning(f'Refresh falló: {e}')
-        return jsonify({'ok': False, 'error': str(e), 'orgs': [], 'total': 0})
+        app_logger.warning(f'Azure API fallo, usando fallback .env: {e}')
+        orgs_env = os.getenv('AZURE_DEVOPS_ORGS', '')
+        org_base = os.getenv('AZURE_DEVOPS_ORG', '')
+        if orgs_env:
+            nombres = [o.strip() for o in orgs_env.split(',') if o.strip()]
+        elif org_base:
+            nombres = [org_base.rstrip('/').split('/')[-1]]
+        else:
+            nombres = []
+        app_logger.info(f'GET organizaciones (fallback .env): {len(nombres)} orgs')
+        return jsonify([{'nombre': n, 'url': f'https://dev.azure.com/{n}'} for n in nombres])
 
 
 # ── Proyectos ────────────────────────────────────────────────

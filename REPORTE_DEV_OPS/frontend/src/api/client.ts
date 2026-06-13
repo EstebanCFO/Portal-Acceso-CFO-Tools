@@ -32,8 +32,9 @@ export const apiGenerar   = () => post<{ ok: boolean; mensaje: string }>('/api/g
 export const apiEstado    = () => get<GeneracionEstado>('/api/estado')
 
 // ── Organizaciones ───────────────────────────────────────
-export const apiOrgs      = () => get<Org[]>('/api/organizaciones')
-export const apiOrgsRefresh = () => get<{ ok: boolean; orgs: Org[]; total: number }>('/api/organizaciones/refresh')
+// Consulta Azure DevOps en el backend (perfil → cuentas del PAT).
+// Fallback a AZURE_DEVOPS_ORGS/.env si la API no responde.
+export const apiOrgs = () => get<Org[]>('/api/organizaciones')
 
 // ── Proyectos ────────────────────────────────────────────
 export const apiProyectos    = (org: string) => get<Proyecto[]>(`/api/proyectos/${encodeURIComponent(org)}`)

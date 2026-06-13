@@ -4,7 +4,7 @@ import type {
   PdfFile, LogFile, GeneracionEstado,
 } from '../types'
 import {
-  apiOrgs, apiOrgsRefresh, apiProyectos, apiProyectoDetalle,
+  apiOrgs, apiProyectos, apiProyectoDetalle,
   apiTestPlans, apiGenerar, apiEstado, apiHistorial,
   apiLogs, apiLogContenido, urlDescarga, apiSalir,
 } from '../api/client'
@@ -48,21 +48,31 @@ export default function ReporteDevOps() {
   const [tab, setTab] = useState<'metricas' | 'desvios' | 'tests' | 'historial' | 'logs'>('metricas')
 
   // Loaders
-  const [loadingOrgs,  setLoadingOrgs]  = useState(false)
+  const [loadingOrgs,  setLoadingOrgs]  = useState(true)   // true: carga inmediata al montar
   const [loadingProys, setLoadingProys] = useState(false)
   const [loadingDet,   setLoadingDet]   = useState(false)
   const [loadingTests, setLoadingTests] = useState(false)
 
   // ── Carga inicial ────────────────────────────────────────
+  // Orgs se cargan consultando Azure DevOps (no desde .env).
+  // El resto (historial, logs, estado) se carga en paralelo.
   useEffect(() => {
     void (async () => {
       try {
-        const [o, h, l, e] = await Promise.all([
-          apiOrgs(), apiHistorial(), apiLogs(), apiEstado(),
+        const [h, l, e] = await Promise.all([
+          apiHistorial(), apiLogs(), apiEstado(),
         ])
-        setOrgs(o); setHistorial(h); setLogs(l); setEstado(e)
+        setHistorial(h); setLogs(l); setEstado(e)
       } catch (err) {
         console.error(err)
+      }
+      try {
+        const o = await apiOrgs()   // consulta Azure: perfil → cuentas
+        setOrgs(o)
+      } catch (err) {
+        console.error('Error cargando orgs desde Azure:', err)
+      } finally {
+        setLoadingOrgs(false)
       }
     })()
   }, [])
@@ -98,22 +108,18 @@ export default function ReporteDevOps() {
   }, [orgSel])
 
   // ── Cambio proyecto ──────────────────────────────────────
+  // Solo limpia el detalle anterior — la carga ocurre al hacer clic en "Consultar"
   useEffect(() => {
-    if (!orgSel || !proySel) { setDetalle(null); setTestPlans([]); return }
+    setDetalle(null); setTestPlans([])
+  }, [orgSel, proySel])
+
+  // ── Consultar ─────────────────────────────────────────────
+  // Disparado por el botón "Consultar" — carga métricas + test plans del proyecto.
+  const handleConsultar = () => {
+    if (!orgSel || !proySel) return
     setLoadingDet(true); setLoadingTests(true)
     void apiProyectoDetalle(orgSel, proySel).then(d => { setDetalle(d); setLoadingDet(false) })
     void apiTestPlans(orgSel, proySel).then(t => { setTestPlans(t); setLoadingTests(false) })
-  }, [orgSel, proySel])
-
-  // ── Refresh orgs ─────────────────────────────────────────
-  const handleRefreshOrgs = async () => {
-    setLoadingOrgs(true)
-    try {
-      const r = await apiOrgsRefresh()
-      if (r.ok) setOrgs(r.orgs)
-    } finally {
-      setLoadingOrgs(false)
-    }
   }
 
   // ── Generar informe ──────────────────────────────────────
@@ -177,27 +183,35 @@ export default function ReporteDevOps() {
       <div className="toolbar">
         <label>Organización</label>
         <select value={orgSel} onChange={e => setOrgSel(e.target.value)} disabled={loadingOrgs}>
-          <option value="">— seleccionar —</option>
+          <option value="">{loadingOrgs ? 'Cargando...' : '— seleccionar —'}</option>
           {orgs.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}
         </select>
 
-        <label>Proyecto</label>
+        <label>Proyectos</label>
         <select value={proySel} onChange={e => setProySel(e.target.value)} disabled={!orgSel || loadingProys}>
-          <option value="">— seleccionar —</option>
+          <option value="">{loadingProys ? 'Cargando...' : '— seleccionar —'}</option>
           {proyectos.map(p => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}
         </select>
 
-        <button className="btn btn-outline btn-sm" onClick={handleRefreshOrgs} disabled={loadingOrgs}>
-          {loadingOrgs ? '...' : '↻ Orgs'}
+        <button
+          className="btn btn-navy btn-sm"
+          onClick={handleConsultar}
+          disabled={!orgSel || !proySel || loadingDet || loadingTests}
+        >
+          {(loadingDet || loadingTests)
+            ? <><span className="spinner" style={{ width: 10, height: 10, borderWidth: 2 }} /> Consultando...</>
+            : 'Consultar'}
         </button>
 
-        <div className="ml-auto gap-8" style={{ display: 'flex', gap: 8 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <button
             className="btn btn-navy"
             onClick={handleGenerar}
             disabled={estado?.corriendo}
           >
-            {estado?.corriendo ? <><span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Generando...</> : '⬇ Generar informe'}
+            {estado?.corriendo
+              ? <><span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Generando...</>
+              : '⬇ Generar informe'}
           </button>
           {/* En modo portal el "← Volver" del portal shell cumple esta función */}
           {!IN_PORTAL && (

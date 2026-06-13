@@ -11,7 +11,6 @@ import {
   apiGenerar,
   apiEstado,
   apiOrgs,
-  apiOrgsRefresh,
   apiProyectos,
   apiProyectoInfo,
   apiProyectoDetalle,
@@ -42,10 +41,6 @@ describe('client.ts — exports', () => {
 
   it('exporta apiOrgs como función', () => {
     expect(typeof apiOrgs).toBe('function')
-  })
-
-  it('exporta apiOrgsRefresh como función', () => {
-    expect(typeof apiOrgsRefresh).toBe('function')
   })
 
   it('exporta apiProyectos como función', () => {
