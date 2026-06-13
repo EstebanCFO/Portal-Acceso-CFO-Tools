@@ -13,6 +13,7 @@ import threading
 import subprocess
 import requests
 from base64 import b64encode
+from urllib.parse import quote as urlquote
 from flask import Flask, jsonify, send_file, request
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -94,6 +95,191 @@ def az_post(url: str, body: dict):
     except Exception as e:
         app_logger.error(f'AZ POST ERROR {url}: {e}')
         return None
+
+
+# ── Sprint helpers ──────────────────────────────────────────
+# Estados considerados "cerrados" — igual que el script PowerShell de referencia.
+ESTADOS_CERRADOS = frozenset({
+    'Closed', 'Done', 'Resolved', 'Completed',
+    'Fixed', 'Removed', 'Resuelta', 'Finalizado',
+})
+
+
+def _wiql_post(org: str, project_ref: str, query: str):
+    """WIQL con charset=utf-8 explícito para soportar proyectos con tildes.
+    No filtra por [System.TeamProject] en la query — evita problemas con
+    caracteres especiales en nombres de proyecto."""
+    ref  = urlquote(project_ref, safe='')
+    url  = f'https://dev.azure.com/{org}/{ref}/_apis/wit/wiql?api-version=7.1'
+    hdr  = dict(HDR)
+    hdr['Content-Type'] = 'application/json; charset=utf-8'
+    body = json.dumps({'query': query}).encode('utf-8')
+    try:
+        r = requests.post(url, data=body, headers=hdr, timeout=15)
+        app_logger.debug(f'WIQL {org}/{project_ref} -> {r.status_code}')
+        return r.json() if r.status_code == 200 else None
+    except Exception as e:
+        app_logger.error(f'WIQL error {url}: {e}')
+        return None
+
+
+def _az_get_ref(org: str, project_ref: str, path: str):
+    """az_get con project_ref URL-encoded."""
+    ref = urlquote(project_ref, safe='')
+    return az_get(f'https://dev.azure.com/{org}/{ref}/{path}')
+
+
+def get_resumen_sprint(org: str, project_ref: str, iter_path: str) -> dict:
+    """Work items de una iteración: total / abiertas / cerradas / por estado.
+    Batch de 200 IDs igual que el script PS."""
+    result = {'total': 0, 'abiertas': 0, 'cerradas': 0, 'estados': {}}
+    try:
+        query = (
+            f"SELECT [System.Id],[System.State] FROM WorkItems "
+            f"WHERE [System.IterationPath] UNDER '{iter_path}'"
+        )
+        wiql = _wiql_post(org, project_ref, query)
+        if not wiql:
+            return result
+        ids = [i['id'] for i in wiql.get('workItems', [])]
+        result['total'] = len(ids)
+        if not ids:
+            return result
+        ref = urlquote(project_ref, safe='')
+        items = []
+        for i in range(0, len(ids), 200):
+            chunk = ','.join(map(str, ids[i:i + 200]))
+            batch = az_get(
+                f'https://dev.azure.com/{org}/{ref}/_apis/wit/workitems'
+                f'?ids={chunk}&fields=System.State&api-version=7.1'
+            )
+            if batch:
+                items.extend(batch.get('value', []))
+        for item in items:
+            estado = item.get('fields', {}).get('System.State', 'Unknown')
+            result['estados'][estado] = result['estados'].get(estado, 0) + 1
+            if estado in ESTADOS_CERRADOS:
+                result['cerradas'] += 1
+            else:
+                result['abiertas'] += 1
+    except Exception as e:
+        app_logger.error(f'get_resumen_sprint error {org}/{project_ref}: {e}')
+    return result
+
+
+def get_tc_ids_por_iteracion(org: str, project_ref: str, iter_path: str) -> set:
+    """IDs de Test Cases asignados a una iteración (para filtrar test points)."""
+    ids: set = set()
+    try:
+        query = (
+            f"SELECT [System.Id] FROM WorkItems "
+            f"WHERE [System.WorkItemType]='Test Case' "
+            f"AND [System.IterationPath] UNDER '{iter_path}'"
+        )
+        data = _wiql_post(org, project_ref, query)
+        if data:
+            ids = {i['id'] for i in data.get('workItems', [])}
+    except Exception as e:
+        app_logger.error(f'get_tc_ids error {org}/{project_ref}: {e}')
+    return ids
+
+
+def get_testplan_progress(
+    org: str, project_ref: str, sprint_nombre: str, iter_path: str
+) -> dict:
+    """Test plan progress para un sprint.
+    Estrategia: match por nombre de sprint → fallback al plan con ID más alto.
+    Paginación via x-ms-continuationtoken igual que el script PS."""
+    resultado = {
+        'encontrado': False, 'planNombre': '', 'totalPlanes': 0,
+        'total': 0, 'corridos': 0, 'pasados': 0,
+        'pctCorridos': 0.0, 'pctPass': 0.0,
+    }
+    try:
+        ref        = urlquote(project_ref, safe='')
+        planes_raw = az_get(f'https://dev.azure.com/{org}/{ref}/_apis/testplan/plans?api-version=7.1')
+        if not planes_raw:
+            return resultado
+        planes_activos = [p for p in planes_raw.get('value', []) if p.get('state') == 'Active']
+        resultado['totalPlanes'] = len(planes_activos)
+        if not planes_activos:
+            return resultado
+
+        # Estrategia 1: plan cuyo nombre contiene el nombre del sprint
+        plan = next(
+            (p for p in planes_activos if sprint_nombre.lower() in p['name'].lower()),
+            None,
+        )
+        # Estrategia 2: plan más reciente por ID
+        if not plan:
+            plan = sorted(planes_activos, key=lambda p: p['id'], reverse=True)[0]
+
+        resultado['encontrado'] = True
+        resultado['planNombre'] = plan['name']
+        plan_id = plan['id']
+
+        # Test cases de la iteración (para filtrar test points)
+        tc_ids_iter = get_tc_ids_por_iteracion(org, project_ref, iter_path)
+
+        # Suites del plan
+        suites_raw = az_get(
+            f'https://dev.azure.com/{org}/{ref}/_apis/testplan/Plans/{plan_id}/suites?api-version=7.1'
+        )
+        if not suites_raw:
+            return resultado
+
+        total_casos = corridos = pasados = 0
+        hdr_get = {k: v for k, v in HDR.items() if k != 'Content-Type'}
+
+        for suite in suites_raw.get('value', []):
+            sid = suite['id']
+            try:
+                # Contar test cases de la suite
+                tc_raw = az_get(
+                    f'https://dev.azure.com/{org}/{ref}/_apis/testplan/Plans/{plan_id}'
+                    f'/Suites/{sid}/TestCase?api-version=7.1'
+                )
+                casos = tc_raw.get('value', []) if tc_raw else []
+                if tc_ids_iter:
+                    casos = [c for c in casos if int(c['workItem']['id']) in tc_ids_iter]
+                total_casos += len(casos)
+
+                # Test points con paginación
+                cont_token = None
+                while True:
+                    url_tp = (
+                        f'https://dev.azure.com/{org}/{ref}/_apis/testplan/Plans/{plan_id}'
+                        f'/Suites/{sid}/TestPoint?api-version=7.1&$top=100'
+                    )
+                    if cont_token:
+                        url_tp += f'&continuationToken={cont_token}'
+                    resp = requests.get(url_tp, headers=hdr_get, timeout=10)
+                    if resp.status_code != 200:
+                        break
+                    pt_data = resp.json()
+                    for pt in pt_data.get('value', []):
+                        if tc_ids_iter and int(pt['testCase']['id']) not in tc_ids_iter:
+                            continue
+                        outcome = (pt.get('results') or {}).get('outcome', '')
+                        if outcome and outcome != 'unspecified':
+                            corridos += 1
+                            if outcome == 'passed':
+                                pasados += 1
+                    cont_token = resp.headers.get('x-ms-continuationtoken')
+                    if not cont_token:
+                        break
+            except Exception as e:
+                app_logger.warning(f'Suite {sid} progress error: {e}')
+                continue
+
+        resultado['total']       = total_casos
+        resultado['corridos']    = corridos
+        resultado['pasados']     = pasados
+        resultado['pctCorridos'] = round(corridos / total_casos * 100, 1) if total_casos  > 0 else 0.0
+        resultado['pctPass']     = round(pasados  / corridos  * 100, 1) if corridos > 0 else 0.0
+    except Exception as e:
+        app_logger.error(f'get_testplan_progress error {org}/{project_ref}: {e}')
+    return resultado
 
 
 # ── Pipeline de generación ──────────────────────────────────
@@ -377,6 +563,74 @@ def get_testplans(org_name, project_name):
         return jsonify(result)
     except Exception as e:
         app_logger.error(f'ERROR testplans: {e}', exc_info=True); return jsonify([])
+
+
+@app.route('/api/sprints/<org_name>/<path:project_name>')
+def get_sprints(org_name, project_name):
+    """Sprint actual + anterior + futuros con work items y test plan progress.
+    Sigue la lógica del script PowerShell de referencia."""
+    try:
+        ref       = urlquote(project_name, safe='')
+        iter_data = az_get(
+            f'https://dev.azure.com/{org_name}/{ref}/_apis/work/teamsettings/iterations?api-version=7.1'
+        )
+        if not iter_data:
+            return jsonify({'error': 'No se pudieron obtener las iteraciones'}), 404
+
+        iterations = iter_data.get('value', [])
+
+        def fmt(d: str) -> str:
+            return d[:10] if d else '--'
+
+        def attr(sprint):
+            return sprint.get('attributes', {})
+
+        current  = next((i for i in iterations if attr(i).get('timeFrame') == 'current'), None)
+        futuros  = [i for i in iterations if attr(i).get('timeFrame') == 'future']
+        pasados  = [
+            i for i in iterations
+            if attr(i).get('timeFrame') == 'past' and attr(i).get('finishDate')
+        ]
+        # Sprint anterior: el past con finishDate más reciente
+        anterior = (
+            sorted(pasados, key=lambda x: attr(x)['finishDate'], reverse=True)[0]
+            if pasados else None
+        )
+
+        def build_sprint(sprint: dict) -> dict:
+            a = attr(sprint)
+            return {
+                'nombre':    sprint['name'],
+                'path':      sprint['path'],
+                'inicio':    fmt(a.get('startDate',  '')),
+                'fin':       fmt(a.get('finishDate', '')),
+                'workitems': get_resumen_sprint(org_name, project_name, sprint['path']),
+                'testplan':  get_testplan_progress(
+                    org_name, project_name, sprint['name'], sprint['path']
+                ),
+            }
+
+        result = {
+            'current':  build_sprint(current)  if current  else None,
+            'anterior': build_sprint(anterior) if anterior else None,
+            'futuros':  [
+                {
+                    'nombre': s['name'],
+                    'inicio': fmt(attr(s).get('startDate',  '')),
+                    'fin':    fmt(attr(s).get('finishDate', '')),
+                }
+                for s in futuros
+            ],
+        }
+        app_logger.info(
+            f'GET sprints {org_name}/{project_name}: '
+            f'current={current["name"] if current else "none"}, '
+            f'futuros={len(futuros)}'
+        )
+        return jsonify(result)
+    except Exception as e:
+        app_logger.error(f'ERROR sprints: {e}', exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/historial')

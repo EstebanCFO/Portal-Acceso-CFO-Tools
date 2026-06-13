@@ -86,6 +86,46 @@ export interface TestPlan {
   resumen: TestPlanResumen
 }
 
+// ── Sprints ────────────────────────────────────────────────
+export interface WorkItemsResumen {
+  total: number
+  abiertas: number
+  cerradas: number
+  estados: Record<string, number>
+}
+
+export interface TestPlanProgress {
+  encontrado: boolean
+  planNombre: string
+  totalPlanes: number
+  total: number
+  corridos: number
+  pasados: number
+  pctCorridos: number
+  pctPass: number
+}
+
+export interface SprintData {
+  nombre: string
+  path: string
+  inicio: string
+  fin: string
+  workitems: WorkItemsResumen
+  testplan: TestPlanProgress
+}
+
+export interface SprintFuturo {
+  nombre: string
+  inicio: string
+  fin: string
+}
+
+export interface SprintsResult {
+  current:  SprintData | null
+  anterior: SprintData | null
+  futuros:  SprintFuturo[]
+}
+
 // ── Historial PDF ─────────────────────────────────────────
 export interface PdfFile {
   nombre: string

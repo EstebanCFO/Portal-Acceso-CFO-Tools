@@ -6,6 +6,7 @@
 import type {
   Org, Proyecto, ProyectoInfo, ProyectoDetalle,
   TestPlan, PdfFile, LogFile, GeneracionEstado,
+  SprintsResult,
 } from '../types'
 
 async function get<T>(path: string): Promise<T> {
@@ -46,6 +47,10 @@ export const apiProyectoDetalle = (org: string, proyecto: string) =>
 // ── Test Plans ───────────────────────────────────────────
 export const apiTestPlans = (org: string, proyecto: string) =>
   get<TestPlan[]>(`/api/testplans/${encodeURIComponent(org)}/${encodeURIComponent(proyecto)}`)
+
+// ── Sprints (current + anterior + futuros) ────────────────
+export const apiSprints = (org: string, proyecto: string) =>
+  get<SprintsResult>(`/api/sprints/${encodeURIComponent(org)}/${encodeURIComponent(proyecto)}`)
 
 // ── Historial & Logs ─────────────────────────────────────
 export const apiHistorial = () => get<PdfFile[]>('/api/historial')
