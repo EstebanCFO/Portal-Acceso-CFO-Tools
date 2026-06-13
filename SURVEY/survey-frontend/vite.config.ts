@@ -16,10 +16,11 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // Separar recharts y react del chunk principal — reduce bundle inicial ~40%
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'recharts':     ['recharts'],
+        // Separar react del chunk principal — reduce bundle inicial
+        manualChunks(id: string) {
+          if (id.includes('/node_modules/react/') || id.includes('/node_modules/react-dom/')) {
+            return 'react-vendor'
+          }
         },
       },
     },

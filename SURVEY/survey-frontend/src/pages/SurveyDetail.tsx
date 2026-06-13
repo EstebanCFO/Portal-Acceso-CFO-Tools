@@ -19,14 +19,6 @@ const BAR_COLORS = [
   '#00875A', '#00A878', '#C96A00', '#C0392B',
 ]
 
-function formatDate(iso: string | null | undefined): string {
-  if (!iso) return '—'
-  try {
-    return new Date(iso).toLocaleDateString('es-AR', {
-      day: '2-digit', month: 'long', year: 'numeric'
-    })
-  } catch { return iso }
-}
 
 // ── Sub-componente: una pregunta con su gráfico ───────────────────────────────
 function QuestionBlock({ q, idx }: { q: QuestionAnalytics; idx: number }) {

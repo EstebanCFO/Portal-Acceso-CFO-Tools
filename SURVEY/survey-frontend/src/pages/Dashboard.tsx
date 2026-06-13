@@ -82,6 +82,7 @@ export default function Dashboard() {
   const [years,       setYears]       = useState<number[]>([])
   const [yearSel,     setYearSel]     = useState<number | ''>('')
   const [loadingYears, setLoadingYears] = useState(true)
+  const [yearsError,  setYearsError]  = useState('')
 
   // Encuestas del año seleccionado
   const [surveys,       setSurveys]       = useState<SurveyForYearItem[]>([])
@@ -97,7 +98,11 @@ export default function Dashboard() {
   useEffect(() => {
     apiYears()
       .then(y => setYears(y))
-      .catch(() => {/* silent */})
+      .catch(err => setYearsError(
+        (err as Error).message?.includes('Failed to fetch') || (err as Error).message?.includes('fetch')
+          ? 'No se puede conectar con el servidor. Verificá que el backend esté corriendo.'
+          : (err as Error).message ?? 'Error al cargar años'
+      ))
       .finally(() => setLoadingYears(false))
   }, [])
 
@@ -196,8 +201,19 @@ export default function Dashboard() {
         </button>
       </div>
 
+      {/* ── Error cargando años (backend no disponible) ─────── */}
+      {yearsError && !loadingYears && (
+        <div className="alert alert-error" style={{ marginBottom: 16 }}>
+          <strong>Error al cargar años disponibles</strong>
+          <p style={{ marginTop: 4, fontSize: 13 }}>{yearsError}</p>
+          <p style={{ marginTop: 6, fontSize: 12, opacity: .8 }}>
+            Iniciá el backend con <code>SURVEY\START.bat</code> y recargá la página.
+          </p>
+        </div>
+      )}
+
       {/* ── Welcome — sin año ───────────────────────────────── */}
-      {!yearSel && !loadingYears && (
+      {!yearSel && !loadingYears && !yearsError && (
         <div className="sv-welcome-card">
           <div className="sv-welcome-icon">📋</div>
           <div className="sv-welcome-title">Survey Analytics — Delivery Center</div>
