@@ -90,6 +90,36 @@ def limpiar_real(valor) -> float | None:
         return None
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Detección de filas amarillas
+# ──────────────────────────────────────────────────────────────────────────────
+
+# RGB (sin alpha) de los amarillos más frecuentes en Excel
+_YELLOW_RGB = {
+    "FFFF00",   # Amarillo puro  (Excel estándar)
+    "FFFF99",   # Amarillo claro
+    "FFCC00",   # Dorado / ámbar
+    "FFD966",   # Amarillo DS de Google Sheets
+}
+
+
+def _es_fila_amarilla(row_cells) -> bool:
+    """
+    Retorna True si alguna celda de la fila tiene fondo amarillo.
+    Compara los últimos 6 caracteres del fgColor ARGB (ignora el canal alpha).
+    """
+    for cell in row_cells:
+        fill = cell.fill
+        if fill is None or fill.fill_type in (None, "none"):
+            continue
+        fg = fill.fgColor
+        if fg is not None and fg.type == "rgb":
+            # fgColor.rgb tiene formato ARGB de 8 hex (ej: 'FFFFFF00')
+            if fg.rgb.upper()[-6:] in _YELLOW_RGB:
+                return True
+    return False
+
+
 def limpiar_pct(valor) -> str | None:
     """
     Convierte el valor de la columna VAR% a texto legible.
@@ -133,6 +163,7 @@ def importar_excel(
     fecha_carga: date | None = None,
     forzar: bool = False,
     db_path: Path = DB_PATH,
+    solapa: str | None = None,
 ) -> dict:
     """
     Carga el Excel en la base de datos como un nuevo snapshot.
@@ -192,11 +223,34 @@ def importar_excel(
     # ── Leer Excel ────────────────────────────────────────────────────────────
     print(f"\n→ Abriendo: {ruta_excel.name}")
     wb = openpyxl.load_workbook(ruta_excel, data_only=True)
-    ws = wb.active
 
-    filas = list(ws.iter_rows(values_only=True))
-    # Fila 1 = encabezados, desde fila 2 son datos
-    datos = filas[1:]  # excluir header
+    if solapa:
+        # Buscar la solapa exacta primero, luego case-insensitive
+        if solapa in wb.sheetnames:
+            ws = wb[solapa]
+        else:
+            match_ci = next(
+                (s for s in wb.sheetnames if s.lower() == solapa.lower()), None
+            )
+            if match_ci:
+                ws = wb[match_ci]
+                print(f"  [solapa] '{solapa}' → encontrada como '{match_ci}' (case-insensitive)")
+            else:
+                disponibles = ", ".join(f'"{s}"' for s in wb.sheetnames)
+                wb.close()
+                conn.close()
+                raise ValueError(
+                    f"La solapa \"{solapa}\" no existe en el archivo.\n"
+                    f"Solapas disponibles: {disponibles}"
+                )
+        print(f"  [solapa] Leyendo hoja: \"{ws.title}\"")
+    else:
+        ws = wb.active
+        print(f"  [solapa] Usando hoja activa: \"{ws.title}\"")
+
+    # Leer con objetos celda (no values_only) para acceder al color de fondo
+    all_rows  = list(ws.iter_rows(values_only=False))
+    data_rows = all_rows[1:]   # fila 1 = encabezados, desde fila 2 son datos
 
     # ── Insertar en importaciones ──────────────────────────────────────────────
     cursor.execute(
@@ -210,16 +264,25 @@ def importar_excel(
     import_id = cursor.lastrowid
 
     # ── Insertar registros de empleados ───────────────────────────────────────
-    insertados = 0
-    errores = []
+    insertados        = 0
+    omitidas_amarillo = 0
+    errores           = []
 
-    for num_fila, fila in enumerate(datos, start=2):
+    for num_fila, row_cells in enumerate(data_rows, start=2):
+        # Extraer valores desde los objetos celda
+        fila = [cell.value for cell in row_cells]
         # Expandir a 20 columnas si la fila es más corta
-        fila = list(fila) + [None] * (20 - len(fila))
+        fila = fila + [None] * (20 - len(fila))
 
         cuil = limpiar_texto(fila[0])
         if not cuil:
             continue  # fila vacía
+
+        # Omitir filas marcadas en amarillo
+        if _es_fila_amarilla(row_cells):
+            omitidas_amarillo += 1
+            print(f"  [amarillo] Fila {num_fila} omitida — CUIL: {cuil}")
+            continue
 
         try:
             cursor.execute(
@@ -277,6 +340,7 @@ def importar_excel(
     wb.close()
 
     # ── Resumen ───────────────────────────────────────────────────────────────
+    omitidas_str = f"  Omitidas (🟡): {omitidas_amarillo}\n" if omitidas_amarillo else ""
     print(f"""
 ╔══════════════════════════════════════════════════╗
 ║           IMPORT COMPLETADO ✓                    ║
@@ -285,9 +349,12 @@ def importar_excel(
   Período   : {periodo}
   Fecha     : {fecha_str}  ({anio}-{mes:02d}-{dia:02d})
   Registros : {insertados}
-  Import ID : {import_id}
+{omitidas_str}  Import ID : {import_id}
   Base de datos: {db_path}
 ╚══════════════════════════════════════════════════╝""")
+
+    if omitidas_amarillo:
+        print(f"  ℹ {omitidas_amarillo} fila(s) omitida(s) por tener fondo amarillo.")
 
     if errores:
         print(f"\n⚠ {len(errores)} filas con errores:")
@@ -295,11 +362,12 @@ def importar_excel(
             print(f"   {e}")
 
     return {
-        "import_id": import_id,
-        "total": insertados,
-        "periodo": periodo,
-        "fecha_carga": fecha_str,
-        "ya_existia": False,
+        "import_id":         import_id,
+        "total":             insertados,
+        "omitidas_amarillo": omitidas_amarillo,
+        "periodo":           periodo,
+        "fecha_carga":       fecha_str,
+        "ya_existia":        False,
     }
 
 
@@ -325,6 +393,12 @@ def main():
         "--forzar", action="store_true",
         help="Forzar re-importación aunque ya exista un registro para esa fecha y archivo.",
     )
+    parser.add_argument(
+        "--solapa", default=None,
+        help="Nombre de la solapa (hoja) del Excel a leer. "
+             "Si se omite, usa la hoja activa. "
+             "Ej: --solapa Junio",
+    )
     args = parser.parse_args()
 
     ruta = Path(args.excel)
@@ -345,6 +419,7 @@ def main():
         periodo=args.periodo,
         fecha_carga=fecha,
         forzar=args.forzar,
+        solapa=args.solapa,
     )
 
 

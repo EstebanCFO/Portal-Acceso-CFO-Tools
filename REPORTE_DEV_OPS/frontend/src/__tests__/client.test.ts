@@ -85,9 +85,9 @@ describe('client.ts — exports', () => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 describe('urlDescarga — construcción de URL', () => {
-  it('construye la ruta base /api/descargar/<nombre>', () => {
+  it('construye la ruta base /api/reporte-devops/descargar/<nombre>', () => {
     const url = urlDescarga('informe_20260611.pdf')
-    expect(url).toBe('/api/descargar/informe_20260611.pdf')
+    expect(url).toBe('/api/reporte-devops/descargar/informe_20260611.pdf')
   })
 
   it('encodea correctamente nombres con espacios', () => {
@@ -99,17 +99,17 @@ describe('urlDescarga — construcción de URL', () => {
   it('encodea caracteres especiales en el nombre', () => {
     const nombre = 'informe/test&data.pdf'
     const url = urlDescarga(nombre)
-    expect(url).toBe(`/api/descargar/${encodeURIComponent(nombre)}`)
+    expect(url).toBe(`/api/reporte-devops/descargar/${encodeURIComponent(nombre)}`)
   })
 
-  it('devuelve string que empieza con /api/descargar/', () => {
+  it('devuelve string que empieza con /api/reporte-devops/descargar/', () => {
     const url = urlDescarga('cualquier.pdf')
-    expect(url).toMatch(/^\/api\/descargar\//)
+    expect(url).toMatch(/^\/api\/reporte-devops\/descargar\//)
   })
 
   it('no modifica nombres simples sin caracteres especiales', () => {
     const url = urlDescarga('reporte.pdf')
-    expect(url).toBe('/api/descargar/reporte.pdf')
+    expect(url).toBe('/api/reporte-devops/descargar/reporte.pdf')
   })
 })
 
@@ -132,13 +132,13 @@ describe('apiProyectos — URL con encodeURIComponent', () => {
     expect(url).not.toContain(' ')
   })
 
-  it('llama a la ruta /api/proyectos/<org>', async () => {
+  it('llama a la ruta /api/reporte-devops/proyectos/<org>', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(JSON.stringify([]), { status: 200 })
     )
     await apiProyectos('miOrg')
     const url = (vi.mocked(fetch).mock.calls[0][0] as string)
-    expect(url).toBe('/api/proyectos/miOrg')
+    expect(url).toBe('/api/reporte-devops/proyectos/miOrg')
   })
 })
 

@@ -14,6 +14,20 @@ import time
 import os
 import sys
 
+# ── DPI awareness (Windows) ───────────────────────────────────────────────────
+# Sin esto, en displays 4K / HiDPI Windows escala el proceso con interpolación
+# bilineal → textos y bordes se ven borrosos ("baja calidad de imagen").
+# SetProcessDpiAwareness(2) = Per-Monitor DPI Aware v1 (Win 8.1+).
+try:
+    from ctypes import windll
+    windll.shcore.SetProcessDpiAwareness(2)
+except Exception:
+    try:
+        from ctypes import windll
+        windll.user32.SetProcessDPIAware()   # fallback Win Vista+
+    except Exception:
+        pass
+
 # ── Paths ─────────────────────────────────────────────────────────────────────
 LAUNCHER_DIR = os.path.dirname(os.path.abspath(__file__))   # portal-launcher/
 BASE_DIR     = os.path.dirname(LAUNCHER_DIR)                # Portal de Acceso/
@@ -279,60 +293,43 @@ class LauncherUI:
     # ── secuencia de arranque ─────────────────────────────────────────────────
 
     def _startup_sequence(self):
-        # 1. Liberar puertos
+        # 1. Liberar el puerto del portal (5174 = gateway unificado)
         self._set_step('Liberando puertos…')
-        _kill_port(LAUNCHER_PORT)
         _kill_port(PORTAL_PORT)
         time.sleep(0.4)
 
-        # 2. pip install — solo si algún paquete requerido falta (S1-9)
+        # 2. pip install — dependencias del gateway (uvicorn, fastapi, httpx, etc.)
         self._set_step('Verificando dependencias…')
         import importlib.util as _il
-        _pkgs = ['flask', 'flask_cors', 'requests']
-        if not all(_il.find_spec(p) is not None for p in _pkgs):
+        _pkgs = ['uvicorn', 'fastapi', 'httpx', 'dotenv']
+        _dotenv_ok = _il.find_spec('dotenv') is not None or _il.find_spec('python_dotenv') is not None
+        if not all(_il.find_spec(p) is not None for p in ['uvicorn', 'fastapi', 'httpx']) or not _dotenv_ok:
             subprocess.run(
-                'pip install -r requirements.txt -q',
-                cwd=LAUNCHER_DIR, shell=True,
+                f'"{sys.executable}" -m pip install uvicorn fastapi httpx python-dotenv requests -q',
+                shell=True,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
 
-        # 3. Portal Launcher Flask
-        self._set_step('Iniciando servicios…')
-        if not _ping(f'{LAUNCHER_URL}/api/health', 1):
-            self._procs['launcher'] = _run_proc('python launcher.py', LAUNCHER_DIR)
-
-        deadline = time.time() + 20
-        while time.time() < deadline:
-            if _ping(f'{LAUNCHER_URL}/api/health', 1):
-                break
-            time.sleep(0.8)
-        else:
-            self._show_error('El servicio interno no respondió.\nReintentar o ejecutar START.bat manualmente.')
-            return
-
-        # 4. npm install si falta node_modules
-        if not os.path.isdir(os.path.join(BASE_DIR, 'node_modules')):
-            self._set_step('Instalando dependencias (primera vez)…')
-            subprocess.run(
-                'npm install --silent',
-                cwd=BASE_DIR, shell=True,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
-
-        # 5. Portal Vite
-        self._set_step('')
+        # 3. Arrancar portal_server.py (gateway unificado en PORTAL_PORT)
+        self._set_step('Iniciando plataforma…')
         local_portal = f'http://localhost:{PORTAL_PORT}'
-        if not _ping(local_portal, 1):
-            self._procs['portal'] = _run_proc('npm run dev', BASE_DIR)
+        gateway_script = os.path.join(BASE_DIR, 'portal_server.py')
+        if not _ping(f'{local_portal}/api/health', 1) and os.path.exists(gateway_script):
+            self._procs['gateway'] = _run_proc(
+                f'"{sys.executable}" portal_server.py',
+                BASE_DIR,
+            )
 
+        # 4. Esperar a que el gateway responda (hasta 45s — arranca backends en background)
+        self._set_step('')
         deadline = time.time() + 45
         while time.time() < deadline:
-            if _ping(local_portal, 1):
+            if _ping(f'{local_portal}/api/health', 1):
                 self.root.after(0, self._on_portal_ready)
                 return
             time.sleep(1)
 
-        self._show_error('El portal no respondió en el tiempo esperado.\nVerificar Node.js y ejecutar START.bat.')
+        self._show_error('El portal no respondió en el tiempo esperado.\nVerificar Python y ejecutar START.bat.')
 
     def _on_portal_ready(self):
         """Portal listo: abre el browser y cierra la ventana splash."""

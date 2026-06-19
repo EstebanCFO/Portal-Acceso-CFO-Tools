@@ -45,6 +45,18 @@ CORS(app, origins=ALLOWED_ORIGINS)
 # Directorio raíz del portal (un nivel arriba de este archivo)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Directorio padre de "Portal de Acceso" (contiene todas las apps hermanas)
+_APPS_ROOT = os.path.dirname(BASE_DIR)   # C:\Esteban CFOTech
+
+# Ruta absoluta al intérprete Python que corre este launcher.
+# Usar sys.executable evita colisiones con App Execution Aliases de Windows Store
+# que interceptan "python" en procesos sin consola.
+# Si el launcher corre con pythonw.exe, lo normalizamos a python.exe.
+_PY = sys.executable
+if _PY.lower().endswith('pythonw.exe'):
+    _PY = _PY[:-len('pythonw.exe')] + 'python.exe'
+_PY_CMD = f'"{_PY}"'   # entre comillas para manejar espacios en la ruta
+
 # ── Configuración de apps ────────────────────────────────────────────────────
 
 APP_CONFIGS: dict[str, dict] = {
@@ -114,6 +126,25 @@ APP_CONFIGS: dict[str, dict] = {
             'label':   'Frontend React',
         },
     },
+    'sound-catch': {
+        # FastAPI :5008 (backend Whisper) + React Vite :5009 (frontend)
+        # Path absoluto: Sound Catch es app hermana del Portal (fuera del BASE_DIR).
+        # Cmd usa _PY_CMD para evitar App Execution Aliases de Windows Store.
+        'backend': {
+            'dir':     os.path.join(_APPS_ROOT, 'Sound Catch', 'web', 'backend'),
+            'cmd':     f'{_PY_CMD} app.py',
+            'health':  'http://localhost:5008/api/health',
+            'timeout': 30,
+            'label':   'Backend FastAPI',
+        },
+        'frontend': {
+            'dir':     os.path.join(_APPS_ROOT, 'Sound Catch', 'web', 'frontend'),
+            'cmd':     'npm run dev',
+            'url':     'http://localhost:5009',
+            'timeout': 40,
+            'label':   'Frontend React',
+        },
+    },
 }
 
 # Estado de lanzamiento y procesos en memoria
@@ -172,7 +203,7 @@ def _launch_worker(app_id: str) -> None:
     status['backend'] = 'launching'
 
     if not _ping(cfg['backend']['health'], timeout=1):
-        backend_dir = os.path.join(BASE_DIR, cfg['backend']['dir'])
+        backend_dir = os.path.normpath(os.path.join(BASE_DIR, cfg['backend']['dir']))
         proc = _start_proc(cfg['backend']['cmd'], backend_dir)
         _procs.setdefault(app_id, {})['backend'] = proc
 
@@ -193,7 +224,7 @@ def _launch_worker(app_id: str) -> None:
     if not _ping(cfg['frontend']['url'], timeout=1):
         # cmd vacío = monolito (el backend ya sirve el frontend, no hay proceso extra)
         if cfg['frontend'].get('cmd'):
-            frontend_dir = os.path.join(BASE_DIR, cfg['frontend']['dir'])
+            frontend_dir = os.path.normpath(os.path.join(BASE_DIR, cfg['frontend']['dir']))
             proc = _start_proc(cfg['frontend']['cmd'], frontend_dir)
             _procs.setdefault(app_id, {})['frontend'] = proc
 

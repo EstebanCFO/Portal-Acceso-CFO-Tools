@@ -1,6 +1,9 @@
 /**
  * client.ts — wrappers tipados para todos los endpoints /api/*
- * El proxy Vite redirige /api → http://localhost:5055 en desarrollo.
+ *
+ * Prefijo unificado: /api/survey
+ * El gateway mapea /api/survey/{path} → localhost:5055/api/{path}.
+ * Dev (Vite proxy): /api/survey → rewrite → :5055/api
  */
 
 import type {
@@ -11,8 +14,10 @@ import type {
   SurveyReportResponse,
 } from '../types'
 
+const BASE = '/api/survey'
+
 async function get<T>(path: string): Promise<T> {
-  const r = await fetch(path)
+  const r = await fetch(`${BASE}${path}`)
   if (!r.ok) {
     const body = await r.json().catch(() => ({}))
     const msg  = (body as { error?: string }).error ?? `HTTP ${r.status}`
@@ -22,31 +27,29 @@ async function get<T>(path: string): Promise<T> {
 }
 
 async function post<T>(path: string): Promise<T> {
-  const r = await fetch(path, { method: 'POST' })
+  const r = await fetch(`${BASE}${path}`, { method: 'POST' })
   if (!r.ok) throw new Error(`HTTP ${r.status} — ${path}`)
   return r.json() as Promise<T>
 }
 
 // ── Health ────────────────────────────────────────────────────────────────────
-export const apiHealth = () => get<{ ok: boolean }>('/api/health')
+export const apiHealth = () => get<{ ok: boolean }>('/health')
 
-// ── Surveys (listado general — mantener para compatibilidad) ──────────────────
-export const apiSurveys   = ()            => get<SurveyListResponse>('/api/surveys')
-export const apiSurvey    = (id: string)  => get<SurveyDetailResponse>(`/api/surveys/${encodeURIComponent(id)}`)
-export const apiAnalytics = (id: string)  => get<SurveyAnalyticsResponse>(`/api/surveys/${encodeURIComponent(id)}/analytics`)
+// ── Surveys ───────────────────────────────────────────────────────────────────
+export const apiSurveys   = ()            => get<SurveyListResponse>('/surveys')
+export const apiSurvey    = (id: string)  => get<SurveyDetailResponse>(`/surveys/${encodeURIComponent(id)}`)
+export const apiAnalytics = (id: string)  => get<SurveyAnalyticsResponse>(`/surveys/${encodeURIComponent(id)}/analytics`)
 
 // ── AÑO + ENCUESTA dropdown ───────────────────────────────────────────────────
-// Años desde appsettings.json (SurveyMonkey:Years)
 export const apiYears = () =>
-  get<number[]>('/api/surveys/years')
+  get<number[]>('/surveys/years')
 
-// Encuestas OPEN con actividad en el año seleccionado
 export const apiSurveysForYear = (year: number) =>
-  get<SurveyForYearResponse>(`/api/surveys/for-year?year=${year}`)
+  get<SurveyForYearResponse>(`/surveys/for-year?year=${year}`)
 
-// ── Reporte de una encuesta: collectors + enviados/respondidos/pendientes ──────
+// ── Reporte ───────────────────────────────────────────────────────────────────
 export const apiSurveyReport = (id: string) =>
-  get<SurveyReportResponse>(`/api/surveys/${encodeURIComponent(id)}/report`)
+  get<SurveyReportResponse>(`/surveys/${encodeURIComponent(id)}/report`)
 
-// ── Shutdown (para portal postMessage) ───────────────────────────────────────
-export const apiShutdown = () => post<{ ok: boolean }>('/api/shutdown')
+// ── Shutdown ──────────────────────────────────────────────────────────────────
+export const apiShutdown = () => post<{ ok: boolean }>('/shutdown')

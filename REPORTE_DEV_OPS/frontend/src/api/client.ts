@@ -1,6 +1,8 @@
 /**
  * client.ts — wrappers tipados para todos los endpoints /api/*
- * El Vite proxy redirige /api → http://localhost:5000 en desarrollo.
+ *
+ * Prefijo unificado: funciona tanto en dev (Vite proxea /api/reporte-devops → :5000)
+ * como en producción (gateway sirve /api/reporte-devops/* inline).
  */
 
 import type {
@@ -9,14 +11,16 @@ import type {
   SprintsResult,
 } from '../types'
 
+const BASE = '/api/reporte-devops'
+
 async function get<T>(path: string): Promise<T> {
-  const r = await fetch(path)
+  const r = await fetch(`${BASE}${path}`)
   if (!r.ok) throw new Error(`HTTP ${r.status} — ${path}`)
   return r.json() as Promise<T>
 }
 
 async function post<T>(path: string, body?: unknown): Promise<T> {
-  const r = await fetch(path, {
+  const r = await fetch(`${BASE}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -26,42 +30,38 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
 }
 
 // ── Health ───────────────────────────────────────────────
-export const apiHealth = () => get<{ ok: boolean }>('/api/health')
+export const apiHealth = () => get<{ ok: boolean }>('/health')
 
 // ── Generación ───────────────────────────────────────────
-export const apiGenerar   = () => post<{ ok: boolean; mensaje: string }>('/api/generar')
-export const apiEstado    = () => get<GeneracionEstado>('/api/estado')
+export const apiGenerar   = () => post<{ ok: boolean; mensaje: string }>('/generar')
+export const apiEstado    = () => get<GeneracionEstado>('/estado')
 
 // ── Organizaciones ───────────────────────────────────────
-// Consulta Azure DevOps en el backend (perfil → cuentas del PAT).
-// Fallback a AZURE_DEVOPS_ORGS/.env si la API no responde.
-export const apiOrgs = () => get<Org[]>('/api/organizaciones')
+export const apiOrgs = () => get<Org[]>('/organizaciones')
 
 // ── Proyectos ────────────────────────────────────────────
-export const apiProyectos    = (org: string) => get<Proyecto[]>(`/api/proyectos/${encodeURIComponent(org)}`)
+export const apiProyectos    = (org: string) => get<Proyecto[]>(`/proyectos/${encodeURIComponent(org)}`)
 export const apiProyectoInfo = (org: string, proyecto: string) =>
-  get<ProyectoInfo>(`/api/proyecto_info/${encodeURIComponent(org)}/${encodeURIComponent(proyecto)}`)
+  get<ProyectoInfo>(`/proyecto_info/${encodeURIComponent(org)}/${encodeURIComponent(proyecto)}`)
 export const apiProyectoDetalle = (org: string, proyecto: string) =>
-  get<ProyectoDetalle>(`/api/proyecto/${encodeURIComponent(org)}/${encodeURIComponent(proyecto)}`)
+  get<ProyectoDetalle>(`/proyecto/${encodeURIComponent(org)}/${encodeURIComponent(proyecto)}`)
 
 // ── Test Plans ───────────────────────────────────────────
 export const apiTestPlans = (org: string, proyecto: string) =>
-  get<TestPlan[]>(`/api/testplans/${encodeURIComponent(org)}/${encodeURIComponent(proyecto)}`)
+  get<TestPlan[]>(`/testplans/${encodeURIComponent(org)}/${encodeURIComponent(proyecto)}`)
 
-// ── Sprints (current + anterior + futuros) ────────────────
-// Query params en lugar de path segments para evitar 404 con nombres
-// que tienen tildes u otros caracteres no-ASCII (ej: "Migración SUF a SICOT")
+// ── Sprints ──────────────────────────────────────────────
 export const apiSprints = (org: string, proyecto: string) =>
-  get<SprintsResult>(`/api/sprints?org=${encodeURIComponent(org)}&project=${encodeURIComponent(proyecto)}`)
+  get<SprintsResult>(`/sprints?org=${encodeURIComponent(org)}&project=${encodeURIComponent(proyecto)}`)
 
 // ── Historial & Logs ─────────────────────────────────────
-export const apiHistorial = () => get<PdfFile[]>('/api/historial')
-export const apiLogs      = () => get<LogFile[]>('/api/logs')
+export const apiHistorial = () => get<PdfFile[]>('/historial')
+export const apiLogs      = () => get<LogFile[]>('/logs')
 export const apiLogContenido = (nombre: string) =>
-  get<{ nombre: string; contenido: string }>(`/api/logs/${encodeURIComponent(nombre)}`)
+  get<{ nombre: string; contenido: string }>(`/logs/${encodeURIComponent(nombre)}`)
 
 // ── Descarga PDF ─────────────────────────────────────────
-export const urlDescarga = (nombre: string) => `/api/descargar/${encodeURIComponent(nombre)}`
+export const urlDescarga = (nombre: string) => `${BASE}/descargar/${encodeURIComponent(nombre)}`
 
 // ── Salir ────────────────────────────────────────────────
-export const apiSalir = () => post<{ ok: boolean }>('/api/salir')
+export const apiSalir = () => post<{ ok: boolean }>('/salir')

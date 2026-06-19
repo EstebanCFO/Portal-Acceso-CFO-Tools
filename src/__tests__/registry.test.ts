@@ -54,9 +54,14 @@ describe('APP_REGISTRY — estructura', () => {
     }
   })
 
-  it('todas las URLs son cadenas http(s) válidas', () => {
+  it('todas las URLs son http(s) absolutas o rutas relativas del gateway (/apps/)', () => {
     for (const app of APP_REGISTRY) {
-      expect(app.url, `App "${app.id}" URL inválida`).toMatch(/^https?:\/\/.+/)
+      const isAbsolute = /^https?:\/\/.+/.test(app.url)
+      const isGatewayPath = app.url.startsWith('/apps/')
+      expect(
+        isAbsolute || isGatewayPath,
+        `App "${app.id}" URL inválida: "${app.url}" debe ser http(s):// o /apps/...`
+      ).toBe(true)
     }
   })
 
@@ -125,26 +130,45 @@ describe('invariantes de negocio', () => {
     expect(activeApps.length).toBeGreaterThan(0)
   })
 
-  it('reporte-devops existe y apunta al puerto 5001', () => {
+  it('reporte-devops existe, está en el gateway y está activa', () => {
     const app = getApp('reporte-devops')
     expect(app).toBeDefined()
-    expect(app?.url).toContain('5001')
+    expect(app?.url).toBe('/apps/reporte-devops/')
     expect(app?.status).toBe('active')
+    expect(app?.type).toBe('iframe')
   })
 
-  it('job-matcher existe, apunta al puerto 5003 (frontend React) y está activa', () => {
+  it('job-matcher existe, está en el gateway y está activa', () => {
     const app = getApp('job-matcher')
     expect(app).toBeDefined()
-    expect(app?.url).toContain('5003')   // FASE 3: frontend Vite :5003
+    expect(app?.url).toBe('/apps/job-matcher/')
     expect(app?.status).toBe('active')
     expect(app?.type).toBe('iframe')
   })
 
-  it('survey existe, apunta al puerto 5176 y está activa', () => {
-    const app = getApp('survey')
+  it('bandas-salariales existe, está en el gateway y está activa', () => {
+    const app = getApp('bandas-salariales')
     expect(app).toBeDefined()
-    expect(app?.url).toContain('5176')   // FASE 6: frontend React :5176
+    expect(app?.url).toBe('/apps/bandas-salariales/')
     expect(app?.status).toBe('active')
     expect(app?.type).toBe('iframe')
+  })
+
+  it('survey existe, está en el gateway y está activa', () => {
+    const app = getApp('survey')
+    expect(app).toBeDefined()
+    expect(app?.url).toBe('/apps/survey/')
+    expect(app?.status).toBe('active')
+    expect(app?.type).toBe('iframe')
+  })
+
+  it('sound-catch existe, está servido inline por el gateway y está activa', () => {
+    const app = getApp('sound-catch')
+    expect(app).toBeDefined()
+    // URL relativa del gateway unificado (ya no usa puerto :5009 separado)
+    expect(app?.url).toBe('/apps/sound-catch/')
+    expect(app?.status).toBe('active')
+    expect(app?.type).toBe('iframe')
+    expect(app?.category).toBe('Productividad')
   })
 })

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactElement } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { pingBackend, shutdownBackend } from '../api/client'
 import { DS } from '../theme'
@@ -30,7 +30,7 @@ const IcoPerson = () => (
   </svg>
 )
 
-interface NavItem { to: string; label: string; Icon: () => JSX.Element }
+interface NavItem { to: string; label: string; Icon: () => ReactElement }
 
 const NAV: NavItem[] = [
   { to: '/',           label: 'Dashboard',   Icon: IcoDashboard },

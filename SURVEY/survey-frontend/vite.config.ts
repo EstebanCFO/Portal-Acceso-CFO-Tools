@@ -3,20 +3,23 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  base: '/apps/survey/',
   server: {
     port: 5176,
+    // Dev: /api/survey/... → :5055/api/...
     proxy: {
-      // Durante dev: /api/* → ASP.NET Core en :5055
-      '/api': {
-        target: 'http://localhost:5055',
+      '/api/survey': {
+        target:      'http://localhost:5055',
         changeOrigin: true,
+        rewrite:     (path) => path.replace(/^\/api\/survey/, '/api'),
       },
     },
   },
   build: {
+    outDir:      'dist',
+    emptyOutDir: true,
     rollupOptions: {
       output: {
-        // Separar react del chunk principal — reduce bundle inicial
         manualChunks(id: string) {
           if (id.includes('/node_modules/react/') || id.includes('/node_modules/react-dom/')) {
             return 'react-vendor'

@@ -1,14 +1,21 @@
 /**
- * client.ts — wrappers tipados para todos los endpoints del backend Node.js :5002
- * El Vite proxy redirige las rutas al backend: vite.config.ts
+ * client.ts — wrappers tipados para el backend Node.js :5002
+ *
+ * Prefijo unificado: /api/job-matcher
+ * El gateway enruta /api/job-matcher/{rest} → localhost:5002/{rest}
+ * (sin anteponer /api/, porque Job Matcher tiene rutas mixtas).
+ *
+ * Dev (Vite proxy): /api/job-matcher → rewrite → localhost:5002 (sin prefijo)
  */
 
 import type { CandidateAnalysis, JDAnalysis, Template } from '../types'
 
+const JM = '/api/job-matcher'
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function postJSON<T>(path: string, body: unknown): Promise<T> {
-  const r = await fetch(path, {
+  const r = await fetch(`${JM}${path}`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(body),
@@ -21,7 +28,7 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function postForm<T>(path: string, form: FormData): Promise<T> {
-  const r = await fetch(path, { method: 'POST', body: form })
+  const r = await fetch(`${JM}${path}`, { method: 'POST', body: form })
   if (!r.ok) {
     const err = await r.json().catch(() => ({})) as { error?: string }
     throw new Error(err.error ?? `HTTP ${r.status}`)
@@ -32,10 +39,10 @@ async function postForm<T>(path: string, form: FormData): Promise<T> {
 // ── Health / Shutdown ─────────────────────────────────────────────────────────
 
 export const apiHealth = (): Promise<{ status: string }> =>
-  fetch('/api/health').then(r => r.json() as Promise<{ status: string }>)
+  fetch(`${JM}/api/health`).then(r => r.json() as Promise<{ status: string }>)
 
 export const apiShutdown = (): Promise<{ ok: boolean }> =>
-  fetch('/api/shutdown', { method: 'POST' }).then(r => r.json() as Promise<{ ok: boolean }>)
+  fetch(`${JM}/api/shutdown`, { method: 'POST' }).then(r => r.json() as Promise<{ ok: boolean }>)
 
 // ── Upload ─────────────────────────────────────────────────────────────────────
 
@@ -70,7 +77,7 @@ export function apiSummarize(
 
 export interface AnalyzeCandidateResult {
   success:  boolean
-  analysis: string   // JSON en string — parsear con JSON.parse()
+  analysis: string
   error?:   string
 }
 
@@ -142,7 +149,7 @@ export async function apiJDGenerate(params: {
   if (params.respuestas_refinamiento) form.append('respuestas_refinamiento', params.respuestas_refinamiento)
   if (params.template_id)            form.append('template_id', params.template_id)
 
-  const r = await fetch('/api/generate', { method: 'POST', body: form })
+  const r = await fetch(`${JM}/api/generate`, { method: 'POST', body: form })
   if (!r.ok) {
     const err = await r.json().catch(() => ({})) as { error?: string }
     throw new Error(err.error ?? `HTTP ${r.status}`)
@@ -160,7 +167,7 @@ export interface TemplatesResult {
 }
 
 export const apiGetTemplates = (): Promise<TemplatesResult> =>
-  fetch('/api/templates').then(r => r.json() as Promise<TemplatesResult>)
+  fetch(`${JM}/api/templates`).then(r => r.json() as Promise<TemplatesResult>)
 
 export interface SaveTemplateResult {
   success:  boolean
@@ -180,7 +187,7 @@ export async function apiSaveTemplate(
 }
 
 export async function apiDeleteTemplate(id: string): Promise<{ success: boolean }> {
-  const r = await fetch(`/api/templates/${id}`, { method: 'DELETE' })
+  const r = await fetch(`${JM}/api/templates/${id}`, { method: 'DELETE' })
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
   return r.json() as Promise<{ success: boolean }>
 }

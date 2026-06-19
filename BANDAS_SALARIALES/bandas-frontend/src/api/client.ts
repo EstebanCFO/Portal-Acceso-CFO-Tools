@@ -4,7 +4,9 @@ import type {
   EmpleadoDetalle, EmpleadoBusqueda, ComparativoRow, UploadResult,
 } from '../types'
 
-const api = axios.create({ baseURL: '/api' })
+// Prefijo unificado: funciona en dev (Vite proxy) y prod (gateway).
+// El gateway mapea /api/bandas-salariales/{path} → :5050/api/{path}.
+const api = axios.create({ baseURL: '/api/bandas-salariales' })
 
 export const getDashboard    = ()       => api.get<DashboardKpis>('/dashboard')
 export const getSnapshots    = ()       => api.get<ImportacionRow[]>('/snapshots')
@@ -19,17 +21,16 @@ export const getComparativo  = (a: number, b: number) =>
 export const deleteSnapshot  = (id: number) =>
   api.delete<{ message: string }>(`/snapshots/${id}`)
 
-export const uploadExcel = (file: File) => {
+export const uploadExcel = (file: File, solapa?: string, periodo?: string) => {
   const fd = new FormData()
   fd.append('excel', file)
+  if (solapa)  fd.append('solapa',  solapa)
+  if (periodo) fd.append('periodo', periodo)
   return api.post<UploadResult>('/upload', fd, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
 }
 
-// Semaforo: health check sin BD — respuesta inmediata (timeout 3s)
 export const pingBackend     = () => api.get<{ status: string }>('/health', { timeout: 3000 })
-
-// Salir: solicita al backend que detenga sus servicios
 export const shutdownBackend = () =>
   api.post<{ message: string }>('/shutdown', {}, { timeout: 3000 })

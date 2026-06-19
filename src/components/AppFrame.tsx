@@ -4,7 +4,6 @@ import {
   isLauncherAvailable,
   launchApp,
   getLaunchStatus,
-  type LaunchStatus,
 } from '../api/launcher'
 
 interface Props {
@@ -23,7 +22,7 @@ const AppFrame: FC<Props> = ({ app }) => {
   const [errored,    setErrored]    = useState(false)
   const [offline,    setOffline]    = useState(false)
   const [launching,  setLaunching]  = useState(true)
-  const [launchInfo, setLaunchInfo] = useState<LaunchStatus | null>(null)
+  // launchInfo retirado — el splash screen ya no muestra pasos individuales
   const [retryKey,   setRetryKey]   = useState(0)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const pollRef   = useRef<number | null>(null)
@@ -34,7 +33,7 @@ const AppFrame: FC<Props> = ({ app }) => {
     setErrored(false)
     setOffline(false)
     setLaunching(true)
-    setLaunchInfo(null)
+    // (launchInfo retirado)
     if (pollRef.current) clearInterval(pollRef.current)
   }, [app.id])
 
@@ -49,10 +48,23 @@ const AppFrame: FC<Props> = ({ app }) => {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 1500)
 
-    fetch(app.url, { mode: 'no-cors', cache: 'no-cache', signal: controller.signal })
-      .then(() => {
+    // Gateway URLs son same-origin (/apps/...): podemos leer response.ok sin no-cors.
+    // URLs absolutas (http://...) son cross-origin: se mantiene no-cors.
+    const isGatewayUrl = app.url.startsWith('/apps/')
+
+    fetch(app.url, {
+      ...(isGatewayUrl ? {} : { mode: 'no-cors' as RequestMode }),
+      cache: 'no-cache',
+      signal: controller.signal,
+    })
+      .then(response => {
         clearTimeout(timer)
         if (cancelled) return
+        // Para URLs gateway: si el gateway devuelve error (app no iniciada),
+        // redirigir al path del launcher en lugar de cargar el iframe con la 404.
+        if (isGatewayUrl && !response.ok) {
+          throw new Error(`gateway:${response.status}`)
+        }
         setLaunching(false)
         setLoading(true)
       })
@@ -81,7 +93,6 @@ const AppFrame: FC<Props> = ({ app }) => {
           if (cancelled) { clearInterval(pollRef.current!); return }
           try {
             const s = await getLaunchStatus(app.id)
-            setLaunchInfo(s)   // actualiza los pasos en la splash screen
 
             if (s.done) {
               clearInterval(pollRef.current!)
@@ -117,7 +128,7 @@ const AppFrame: FC<Props> = ({ app }) => {
     setErrored(false)
     setOffline(false)
     setLaunching(true)
-    setLaunchInfo(null)
+    // (launchInfo retirado)
     setRetryKey(k => k + 1)
   }
 

@@ -13,8 +13,28 @@ interface LocalResult {
   message: string
 }
 
+const MESES: { label: string; num: string }[] = [
+  { label: 'Enero',      num: '01' },
+  { label: 'Febrero',    num: '02' },
+  { label: 'Marzo',      num: '03' },
+  { label: 'Abril',      num: '04' },
+  { label: 'Mayo',       num: '05' },
+  { label: 'Junio',      num: '06' },
+  { label: 'Julio',      num: '07' },
+  { label: 'Agosto',     num: '08' },
+  { label: 'Septiembre', num: '09' },
+  { label: 'Octubre',    num: '10' },
+  { label: 'Noviembre',  num: '11' },
+  { label: 'Diciembre',  num: '12' },
+]
+
+const ANIO_ACTUAL = new Date().getFullYear()
+const ANIOS = [ANIO_ACTUAL - 1, ANIO_ACTUAL, ANIO_ACTUAL + 1]
+
 export default function UploadModal({ open, onClose, onSuccess }: Props) {
   const [file,    setFile]    = useState<File | null>(null)
+  const [mes,     setMes]     = useState<string>('')
+  const [anio,    setAnio]    = useState<string>(String(ANIO_ACTUAL))
   const [loading, setLoading] = useState(false)
   const [result,  setResult]  = useState<LocalResult | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -32,11 +52,15 @@ export default function UploadModal({ open, onClose, onSuccess }: Props) {
   }
 
   async function handleUpload() {
-    if (!file) return
+    if (!file || !mes) return
     setLoading(true)
     setResult(null)
+
+    const mesObj  = MESES.find(m => m.label === mes)!
+    const periodo = `${anio}-${mesObj.num}`   // e.g. "2026-06"
+
     try {
-      const { data } = await uploadExcel(file)
+      const { data } = await uploadExcel(file, mes, periodo)
       setResult({ status: data.status, message: data.message })
       if (data.status === 'ok') onSuccess()
     } catch (err: unknown) {
@@ -51,6 +75,8 @@ export default function UploadModal({ open, onClose, onSuccess }: Props) {
   function handleClose() {
     if (loading) return
     setFile(null)
+    setMes('')
+    setAnio(String(ANIO_ACTUAL))
     setResult(null)
     onClose()
   }
@@ -60,13 +86,78 @@ export default function UploadModal({ open, onClose, onSuccess }: Props) {
                    : result?.status === 'error'      ? 'alert alert-error'
                    : 'alert alert-info'
 
+  const canImport = !!file && !!mes && !loading
+
   return (
     <div className="modal-overlay" onClick={handleClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">Cargar nuevo Excel</div>
 
         <div className="modal-body">
-          {/* Drop zone */}
+
+          {/* ── Selector de mes / año ── */}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+            <div style={{ flex: 1 }}>
+              <label className="caption" style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                Mes *
+              </label>
+              <select
+                value={mes}
+                onChange={e => { setMes(e.target.value); setResult(null) }}
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  height: 36,
+                  padding: '0 10px',
+                  borderRadius: 6,
+                  border: '1.5px solid var(--gray3)',
+                  background: 'var(--gray1)',
+                  color: mes ? 'var(--navy)' : 'var(--gray5)',
+                  fontSize: 13,
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                }}
+              >
+                <option value="">Seleccionar mes…</option>
+                {MESES.map(m => (
+                  <option key={m.num} value={m.label}>{m.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ width: 100 }}>
+              <label className="caption" style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                Año *
+              </label>
+              <select
+                value={anio}
+                onChange={e => setAnio(e.target.value)}
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  height: 36,
+                  padding: '0 10px',
+                  borderRadius: 6,
+                  border: '1.5px solid var(--gray3)',
+                  background: 'var(--gray1)',
+                  color: 'var(--navy)',
+                  fontSize: 13,
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {ANIOS.map(a => (
+                  <option key={a} value={String(a)}>{a}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {mes && (
+            <p className="caption" style={{ marginBottom: 10, color: 'var(--green-d)' }}>
+              Se leerá la solapa <strong>"{mes}"</strong> del archivo · Período: <strong>{anio}-{MESES.find(m => m.label === mes)!.num}</strong>
+            </p>
+          )}
+
+          {/* ── Drop zone ── */}
           <div
             className={`upload-zone${file ? ' has-file' : ''}${loading ? ' loading' : ''}`}
             onClick={() => !loading && inputRef.current?.click()}
@@ -117,9 +208,11 @@ export default function UploadModal({ open, onClose, onSuccess }: Props) {
             </div>
           )}
 
-          <p className="caption" style={{ marginTop: 8 }}>
-            El periodo se extrae del nombre del archivo. Ej: "Bandas Salariales Julio 2026 - DC.xlsx"
-          </p>
+          {!mes && (
+            <p className="caption" style={{ marginTop: 8, color: 'var(--orange)' }}>
+              ⚠ Seleccioná el mes antes de importar.
+            </p>
+          )}
         </div>
 
         <div className="modal-footer">
@@ -127,7 +220,7 @@ export default function UploadModal({ open, onClose, onSuccess }: Props) {
           <button
             className="btn-primary"
             onClick={handleUpload}
-            disabled={!file || loading}
+            disabled={!canImport}
           >
             {loading
               ? <><span className="spinner spinner-sm" style={{ borderTopColor: '#fff', borderColor: 'rgba(255,255,255,.25)' }} /> Importando...</>

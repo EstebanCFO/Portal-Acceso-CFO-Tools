@@ -7,10 +7,14 @@ namespace BandasSalariales.Web.Controllers;
 [Route("api/[controller]")]
 public class UploadController(IWebHostEnvironment env) : ControllerBase
 {
-    /// POST /api/upload   multipart/form-data  campo: excel
+    /// POST /api/upload   multipart/form-data
+    ///   campos: excel (file), solapa? (string), periodo? (string YYYY-MM)
     [HttpPost]
     [RequestSizeLimit(50_000_000)]   // 50 MB
-    public async Task<IActionResult> Upload(IFormFile? excel)
+    public async Task<IActionResult> Upload(
+        IFormFile? excel,
+        [FromForm] string? solapa,
+        [FromForm] string? periodo)
     {
         if (excel is null || excel.Length == 0)
             return BadRequest(new { message = "No se recibió archivo." });
@@ -31,10 +35,17 @@ public class UploadController(IWebHostEnvironment env) : ControllerBase
         var scriptsDir = Path.GetFullPath(Path.Combine(root, "..", "scripts"));
         var scriptPath = Path.Combine(scriptsDir, "import_excel.py");
 
+        // Construir argumentos opcionales
+        var extraArgs = "";
+        if (!string.IsNullOrWhiteSpace(solapa))
+            extraArgs += $" --solapa \"{solapa}\"";
+        if (!string.IsNullOrWhiteSpace(periodo))
+            extraArgs += $" --periodo {periodo}";
+
         var psi = new ProcessStartInfo
         {
             FileName               = "python",
-            Arguments              = $"\"{scriptPath}\" \"{tmpPath}\"",
+            Arguments              = $"\"{scriptPath}\" \"{tmpPath}\"{extraArgs}",
             WorkingDirectory       = Path.GetFullPath(Path.Combine(root, "..")),
             RedirectStandardOutput = true,
             RedirectStandardError  = true,

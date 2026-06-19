@@ -8,15 +8,20 @@ import './index.css'
 // Host configurable — en dev = "localhost"; en red/prod = IP o dominio del servidor.
 // Se lee del VITE_HOST definido en el .env raíz del portal.
 const _H  = import.meta.env.VITE_HOST          ?? 'localhost'
-const _LP = import.meta.env.VITE_LAUNCHER_PORT  ?? '4999'
+// VITE_LAUNCHER_PORT apunta al gateway unificado (:5174) o al launcher legacy (:4999)
+const _LP = import.meta.env.VITE_LAUNCHER_PORT  ?? '5174'
 
 // Orígenes permitidos para mensajes postMessage de las apps embebidas.
-// Se construyen con el mismo host que el portal para funcionar en cualquier entorno.
+// Incluye:
+//   · mismo origen del portal (apps servidas inline desde el gateway)
+//   · puertos directos (apps en modo dev con su propio Vite)
 const ALLOWED_APP_ORIGINS = [
-  `http://${_H}:5001`,   // Reporte DevOps frontend
-  `http://${_H}:5173`,   // Bandas Salariales frontend
-  `http://${_H}:5003`,   // Job Matcher frontend React (FASE 3)
-  `http://${_H}:5176`,   // Survey Analytics frontend (FASE 6)
+  window.location.origin,         // apps servidas por el gateway (mismo origen)
+  `http://${_H}:5001`,           // Reporte DevOps frontend (Vite dev)
+  `http://${_H}:5173`,           // Bandas Salariales frontend (Vite dev)
+  `http://${_H}:5003`,           // Job Matcher frontend (Vite dev)
+  `http://${_H}:5176`,           // Survey Analytics frontend (Vite dev)
+  `http://${_H}:5009`,           // Sound Catch frontend (Vite dev)
 ]
 
 const LAUNCHER = `http://${_H}:${_LP}`

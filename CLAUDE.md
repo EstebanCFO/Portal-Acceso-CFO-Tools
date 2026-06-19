@@ -24,11 +24,12 @@ El portal actúa como contenedor: renderiza cada app en un `<iframe>`. Las apps 
 | Estilos | CSS plano con variables del Design System (sin Tailwind, sin MUI) |
 | Integración de apps | `<iframe>` + postMessage protocol |
 | Comunicación portal ↔ apps | `window.parent.postMessage` / `window.addEventListener('message')` |
+| Gateway | **FastAPI** (`portal_server.py`) en `:5174` — sirve portal + apps vía `/apps/{id}/` |
 | Auth | No implementada — planificada con Clerk/Google SSO |
-| Runtime | Windows 11 / PowerShell · Node.js 18+ |
-| Deploy | Vite build estático → Vercel / IIS / cualquier CDN |
+| Runtime | Windows 11 / PowerShell · Node.js 18+ · Python 3.9+ |
+| Deploy | Gateway FastAPI + Vite builds estáticos |
 
-> No hay backend propio. El portal es 100% estático (SPA).
+> **Gateway unificado:** `portal_server.py` (FastAPI/uvicorn en `:5174`) sirve el portal shell en `/*` y cada app en `/apps/{app_id}/{path}`. En dev: proxied a Vite dev servers por puerto. En prod: sirve desde `dist/` de cada app.
 
 ---
 
@@ -47,9 +48,11 @@ Portal de Acceso\
 ├── START.bat                      ← abre la UI flotante del launcher (pythonw)
 ├── STOP.bat                       ← mata :5174
 │
-├── portal-launcher\               ← ★ Servicio local de lanzamiento de apps
+├── portal_server.py               ← ★ Gateway FastAPI/uvicorn :5174 — sirve portal + apps
+│
+├── portal-launcher\               ← Servicio local de lanzamiento
 │   ├── launcher.py                ← Flask :4999 — POST /api/launch, GET /api/status, POST /api/stop
-│   ├── launcher_ui.py             ← UI flotante tkinter — arranca launcher + Vite, muestra estado
+│   ├── launcher_ui.py             ← UI flotante tkinter — arranca portal_server.py, muestra estado
 │   ├── run_ui.vbs                 ← lanza launcher_ui.py sin ventana DOS (llamado por START.bat)
 │   ├── requirements.txt
 │   └── .env                       ← PORT, APP_HOST, PORTAL_PORT, ALLOWED_ORIGINS, AUTOSTART_APPS
@@ -195,7 +198,7 @@ cd SURVEY\survey-frontend    ; npm install ; cd ..\..
 ### 8 — Verificar que todo funciona
 
 ```powershell
-# Tests del portal shell (deben pasar 111/111)
+# Tests del portal shell (deben pasar 127/127)
 npm run test
 
 # Levantar el portal completo (doble clic o PowerShell)
@@ -203,10 +206,10 @@ npm run test
 ```
 
 El `START.bat` abre la **UI flotante del launcher** (ventana verde CFOTech) que:
-1. Instala dependencias Python si faltan
-2. Arranca `portal-launcher/launcher.py` en `:4999`
-3. Arranca el portal Vite en `:5174`
-4. Abre el browser automáticamente
+1. Libera el puerto `:5174`
+2. Instala dependencias Python si faltan (`uvicorn`, `fastapi`, `httpx`, `python-dotenv`)
+3. Arranca `portal_server.py` (gateway FastAPI en `:5174`)
+4. Abre el browser automáticamente cuando `/api/health` responde
 
 ---
 
@@ -214,25 +217,31 @@ El `START.bat` abre la **UI flotante del launcher** (ventana verde CFOTech) que:
 
 ### Opción A — Doble clic (recomendada)
 
-`START.bat` → abre UI flotante → arranca launcher + Vite → abre browser en `:5174`
+`START.bat` → abre UI flotante → arranca `portal_server.py` → abre browser en `:5174`
 
-La UI flotante muestra el estado de cada servicio con puntos de color (DS) y permite:
-- **Abrir** — abre el browser en el portal
-- **Detener** — baja launcher + portal + todas las apps
+La UI flotante muestra spinner mientras espera que el gateway responda en `/api/health`.
 - **×** — cierra la ventana sin bajar los servicios (siguen corriendo en background)
 
-### Opción B — Terminal
+### Opción B — Terminal (gateway)
+
+```powershell
+cd "C:\Esteban CFOTech\Portal de Acceso"
+python portal_server.py   # gateway en http://localhost:5174
+```
+
+El gateway arranca todos los backends y frontends automáticamente.
+
+### Opción C — Dev mode (portal shell solo)
 
 ```powershell
 cd "C:\Esteban CFOTech\Portal de Acceso"
 npm install       # solo la primera vez
-npm run dev       # → http://localhost:5174
+npm run dev       # → portal Vite en http://localhost:5175 (dev)
 npm run build     # build de producción en dist/
-npm run preview   # sirve dist/ en http://localhost:5174
-npm run test      # suite Vitest (111 tests)
+npm run test      # suite Vitest (127 tests)
 ```
 
-> El portal corre en `:5174` para no colisionar con las apps.
+> En dev, el gateway (`portal_server.py`) sigue siendo necesario en `:5174` para servir las apps. El portal Vite corre en `:5175`.
 
 ---
 
@@ -504,24 +513,37 @@ APP_CONFIGS = {
 
 ```
 Portal de Acceso\
-├── REPORTE_DEV_OPS\         ← Flask API :5000 + React/Vite :5001
-├── BANDAS_SALARIALES\       ← ASP.NET Core :5050 + React/Vite/CSS-DS :5173 (sin MUI)
-├── JOB_MATCHER\             ← Node.js/Express :5002 + React/Vite :5003
+├── portal_server.py         ← ★ Gateway FastAPI :5174 — punto de entrada único
+├── REPORTE_DEV_OPS\         ← Flask API :5000 + React/Vite :5001 → /apps/reporte-devops/
+├── BANDAS_SALARIALES\       ← ASP.NET Core :5050 + React/Vite/CSS-DS :5173 → /apps/bandas-salariales/
+├── JOB_MATCHER\             ← Node.js/Express :5002 + React/Vite :5003 → /apps/job-matcher/
 │   ├── backend\             ← API pura (FASE 3: express.static removido)
 │   └── frontend\            ← React 19 + Vite :5003 (migrado en FASE 3)
-├── SURVEY\                  ← ASP.NET Core :5055 + React/Vite :5176
-├── portal-launcher\         ← Flask :4999
-└── src\                     ← Portal shell React 19 + Vite :5174
+├── SURVEY\                  ← ASP.NET Core :5055 + React/Vite :5176 → /apps/survey/
+├── portal-launcher\         ← Flask :4999 (launcher legacy) + launcher_ui.py
+└── src\                     ← Portal shell React 19 + Vite 8 (build → dist/)
 ```
 
-| App | Puertos | Stack | Estado |
-|-----|---------|-------|--------|
-| Portal shell | `:5174` | React 19 + Vite 8 | ✅ activo |
-| Reporte DevOps | `:5001` front / `:5000` API | React 19 + Vite 8 / Flask | ✅ activo |
-| Bandas Salariales | `:5173` front / `:5050` API | React 19 + Vite 8 + CSS plano DS / ASP.NET Core | ✅ activo |
-| Job Matcher + JD Generator | `:5003` front / `:5002` API | React 19 + Vite 8 / Node.js + Express | ✅ activo (FASE 3) |
-| Survey Analytics | `:5176` front / `:5055` API | React 19 + Vite 8 / ASP.NET Core 8 | ✅ activo (FASE 6) |
-| Portal Launcher | `:4999` | Flask | ✅ activo |
+| Componente | Puerto(s) | Stack | URL en gateway |
+|------------|-----------|-------|----------------|
+| **Gateway** | `:5174` | FastAPI + uvicorn | `http://localhost:5174` |
+| Portal shell | `dist/` (build) | React 19 + Vite 8 | `http://localhost:5174/` |
+| Reporte DevOps | `:5001` front / `:5000` API | React 19 + Vite 8 / Flask | `/apps/reporte-devops/` |
+| Bandas Salariales | `:5173` front / `:5050` API | React 19 + Vite 8 + CSS DS / ASP.NET Core | `/apps/bandas-salariales/` |
+| Job Matcher + JD Generator | `:5003` front / `:5002` API | React 19 + Vite 8 / Node.js + Express | `/apps/job-matcher/` |
+| Survey Analytics | `:5176` front / `:5055` API | React 19 + Vite 8 / ASP.NET Core 8 | `/apps/survey/` |
+| Portal Launcher | `:4999` | Flask | legacy — `launcher_ui.py` ya no lo usa |
+
+### Gateway routes (`portal_server.py`)
+
+| Ruta | Comportamiento |
+|------|---------------|
+| `/apps/{app_id}/{path}` | Dev: proxy al Vite dev server de la app. Prod: sirve `{APP_DIR}/dist/` |
+| `/api/{app_id}/{path}` | Proxy al backend de la app (Flask/dotnet/Node) |
+| `/api/health` | Health check del gateway |
+| `/{path}` (catch-all) | Dev: proxy al portal Vite `:5175`. Prod: sirve `dist/index.html` |
+
+**Crítico:** Cada app debe tener `base: '/apps/{id}/'` en `vite.config.ts` para que los assets se sirvan correctamente. Si existe `vite.config.js` en el mismo directorio, Vite lo prioriza sobre `vite.config.ts` — **borrar cualquier `.js` legacy que no tenga `base` configurado**.
 
 ---
 
@@ -539,6 +561,19 @@ Portal de Acceso\
 
 **Regla:** `.portal-body` tiene `position: relative` + `overflow: hidden`.
 `AppFrame` usa `position: absolute; inset: 0`.
+
+### AppFrame — Gateway mode vs. direct URL
+
+`AppFrame.tsx` detecta si la app se sirve a través del gateway:
+
+```typescript
+const isGatewayUrl = app.url.startsWith('/apps/')
+```
+
+- **Gateway URL** (`/apps/...`): preflight sin `no-cors` (es same-origin), detecta 503 via `response.ok`.
+- **URL directa** (`http://localhost:XXXX`): preflight con `mode: 'no-cors'` (cross-origin), ignora status code.
+
+Las apps registradas con `url: '/apps/{id}/'` en `apps.ts` usan el gateway. Las registradas con `http://` hacen preflight cross-origin clásico.
 
 ---
 
@@ -646,3 +681,5 @@ Tokens clave:
 | 2026-06-12 | **FASE 7:** Hosted deployment — eliminación de `localhost` hardcodeado en todos los paths. `VITE_HOST` controla host en portal shell (registry, launcher client, ALLOWED_APP_ORIGINS). `VITE_PORTAL_URL` en cada frontend de app para destino de postMessage. CORS configurable vía env vars en todos los backends. Launcher escucha en `0.0.0.0`. `AUTOSTART_APPS` lanza todas las apps al iniciar. UI flotante (`launcher_ui.py`) lee `PORTAL_URL` del `.env`. `.env.example` añadido a todos los frontends. 24 archivos · 111/111 tests. |
 | 2026-06-12 | **RDO orgs dinámicas + Consultar:** Reporte DevOps — `/api/organizaciones` consulta Azure DevOps en tiempo real (perfil PAT → cuentas). Fallback a `AZURE_DEVOPS_ORGS` en `.env`. Orgs se cargan automáticamente al activarse la app (`loadingOrgs=true` al montar). `/api/organizaciones/refresh` eliminado. Botón **[Consultar]** a la derecha del dropdown de Proyectos (reemplaza auto-load al seleccionar). `apiOrgsRefresh` eliminado de `client.ts`. RDO tests: **42/42** (−1). |
 | 2026-06-12 | **RDO sprint cards:** Nuevo endpoint `GET /api/sprints/<org>/<proyecto>` → `SprintsResult { current, anterior, futuros }`. Helpers: `ESTADOS_CERRADOS`, `_wiql_post` (charset UTF-8, sin `[System.TeamProject]`), `get_resumen_sprint`, `get_tc_ids_por_iteracion`, `get_testplan_progress` (paginación `x-ms-continuationtoken`). Frontend: componente `SprintCard` + 3 tarjetas (Sprint Actual verde, Sprint Anterior naranja, Sprints Futuros). Nuevas interfaces TS: `WorkItemsResumen`, `TestPlanProgress`, `SprintData`, `SprintsResult`. `apiSprints()` en client.ts. Historial siempre visible; logs expandibles. Total ecosistema: **343 tests** (111+42+57+96+37). |
+| 2026-06-16 | **Gateway + fix iframe:** `portal_server.py` (FastAPI/uvicorn) punto de entrada unificado en `:5174`. Apps servidas en `/apps/{id}/`. Fix bug crítico: `vite.config.js` en Bandas Salariales (sin `base`) overrideaba `vite.config.ts` con prioridad en resolución Vite — assets sin prefijo → gateway servía `index.html` del portal para los JS → `<script type="module">` rechazado por MIME → app no cargaba. Fix: eliminado `vite.config.js`, rebuild Bandas `dist/`. `AppFrame.tsx`: `isGatewayUrl = app.url.startsWith('/apps/')` para preflight same-origin sin `no-cors` y detección correcta de 503. `launcher_ui.py`: `_startup_sequence` reescrito para arrancar `portal_server.py` directamente y esperar `/api/health` (hasta 45s). 5 assertions RDO `client.test.ts` actualizadas a rutas `/api/reporte-devops/...`. **Total: 377/377 tests** (Portal 127 · Bandas 114 · RDO 42 · JM 57 · Survey 37). |
+| 2026-06-19 | **Fix bugs de usuario (6):** (1) Sound Catch `:5008` → mensaje dinámico `window.location.origin`, `.env` VITE_API_URL vacío, proxy vite.config.ts corregido, gateway prefix `/api/sound-catch/api`. (2) Survey "JSON inválido" → ASP.NET Core `UseResponseCompression` enviaba Brotli; httpx sin paquete `brotli` no decodificaba; gateway stripeaba `Content-Encoding` pero pasaba bytes comprimidos → parse fail. Fix: `portal_server.py` excluye `accept-encoding` de headers reenviados en `proxy_api`, `_proxy_vite` y `serve_portal`. (3) JM "JSON inválido" en upload → Node.js `compression()` middleware; mismo fix del gateway. (4) Bandas "no carga front" → `BrowserRouter` sin `basename` causaba navigate-to-`/` en contexto iframe; Fix: `basename="/apps/bandas-salariales"` en `App.tsx`, rebuild dist. (5) RDO "no carga front" → Flask sin compresión, issue de timing de backend startup (no hay compresión que afecte); sin cambio de código necesario. (6) Pantalla de carga baja calidad → `launcher_ui.py` sin DPI awareness en displays 4K; Fix: `windll.shcore.SetProcessDpiAwareness(2)` + fallback `SetProcessDPIAware()`. Nuevos tests: `JM/frontend/src/__tests__/client.test.ts` (24 tests) + `Survey/survey-frontend/src/__tests__/client.test.ts` (25 tests). **Total: 426/426 tests** (Portal 127 · Bandas 114 · RDO 42 · JM 81 · Survey 62). |

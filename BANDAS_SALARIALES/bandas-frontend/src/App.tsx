@@ -11,7 +11,7 @@ export const IN_PORTAL = window.self !== window.top
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/apps/bandas-salariales">
       <Layout>
         <Routes>
           <Route path="/"          element={<Dashboard />} />

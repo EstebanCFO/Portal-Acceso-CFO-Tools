@@ -52,6 +52,12 @@ const APP_LINK: App = {
   id: 'test-link', name: 'Test Link', type: 'link',
 }
 
+// Fixture para apps servidas a través del gateway unificado
+const APP_GATEWAY: App = {
+  ...APP_ACTIVE,
+  id: 'test-gateway', name: 'Test Gateway', url: '/apps/test-gateway/',
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // Header
 // ══════════════════════════════════════════════════════════════════════════════
@@ -590,6 +596,109 @@ describe('AppFrame — overlay durante lanzamiento (sin pasos visibles)', () => 
 // App (portal root) — beforeunload dispara sendBeacon a stop-all
 // ══════════════════════════════════════════════════════════════════════════════
 
+// ══════════════════════════════════════════════════════════════════════════════
+// AppFrame — URLs de gateway (/apps/...) · Bug: preflight no-cors ignora 404
+//
+// RAÍZ DEL BUG:
+//   Para URLs absolutas (http://...) el fetch usa mode:no-cors, que convierte
+//   cualquier respuesta en opaca: incluso un 404 "resuelve" la Promise.
+//   Para URLs gateway same-origin (/apps/...) el gateway está siempre en pie
+//   → el fetch TAMBIÉN resuelve aunque la app esté caída (responde 404/503).
+//   Resultado: .catch() nunca se activa → el launcher nunca se llama →
+//   el iframe carga la página de error del gateway en lugar de la app.
+//
+// FIX: para /apps/... se omite no-cors (mismo origen) y se verifica response.ok.
+//      Si !ok → throw → .catch() → flujo del launcher normal.
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('AppFrame — URL de gateway (/apps/...) · preflight', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()   // ← limpia contadores de llamadas entre tests
+    vi.useFakeTimers()
+    vi.mocked(isLauncherAvailable).mockResolvedValue(true)
+    vi.mocked(launchApp).mockResolvedValue(undefined)
+  })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('[BUG] gateway 404 activa el launcher (sin el fix carga el iframe con error)', async () => {
+    // Reproduce el bug: gateway online pero app no iniciada → responde 404.
+    // Sin fix: .then() dispara igual → iframe muestra página de error.
+    // Con fix: !response.ok → throw → .catch() → launcher triggered ✓
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 404 }))
+    vi.mocked(getLaunchStatus).mockResolvedValue({
+      backend: 'ready', frontend: 'ready', done: true, error: null,
+      backendLabel: 'Backend', frontendLabel: 'Frontend',
+    })
+
+    render(<AppFrame app={APP_GATEWAY} />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+
+    expect(vi.mocked(launchApp)).toHaveBeenCalledWith(APP_GATEWAY.id)
+  })
+
+  it('[BUG] gateway 503 también activa el launcher (cualquier non-2xx)', async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 503 }))
+    vi.mocked(getLaunchStatus).mockResolvedValue({
+      backend: 'launching', frontend: 'pending', done: false, error: null,
+      backendLabel: 'Backend', frontendLabel: 'Frontend',
+    })
+
+    render(<AppFrame app={APP_GATEWAY} />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+
+    expect(vi.mocked(launchApp)).toHaveBeenCalledWith(APP_GATEWAY.id)
+  })
+
+  it('gateway 200 → carga el iframe directamente, sin pasar por el launcher', async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 200 }))
+    vi.mocked(isLauncherAvailable).mockResolvedValue(false)
+
+    render(<AppFrame app={APP_GATEWAY} />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+
+    // call counts son 0 en este test gracias a vi.clearAllMocks() en beforeEach
+    expect(vi.mocked(launchApp)).not.toHaveBeenCalled()
+    expect(vi.mocked(isLauncherAvailable)).not.toHaveBeenCalled()
+  })
+
+  it('gateway 404 → el overlay permanece visible mientras el launcher trabaja', async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 404 }))
+    vi.mocked(getLaunchStatus).mockResolvedValue({
+      backend: 'launching', frontend: 'pending', done: false, error: null,
+      backendLabel: 'Backend', frontendLabel: 'Frontend',
+    })
+
+    const { container } = render(<AppFrame app={APP_GATEWAY} />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(900) })
+
+    expect(container.querySelector('.frame-loading-only')).toBeInTheDocument()
+    expect(container.querySelector('.frame-offline')).not.toBeInTheDocument()
+  })
+
+  it('URL absoluta con 404 NO activa el launcher (no-cors: opaque, comportamiento previo intacto)', async () => {
+    // Garantiza que el fix no rompe el flujo para URLs absolutas cross-origin.
+    // Con no-cors el status es opaco → no podemos saber si fue 404 → .then() dispara.
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 404 }))
+
+    render(<AppFrame app={APP_ACTIVE} />)   // url: 'http://localhost:9999'
+    await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+
+    // call count es 0 en este test gracias a vi.clearAllMocks() en beforeEach
+    expect(vi.mocked(launchApp)).not.toHaveBeenCalled()
+  })
+
+  it('gateway 404 + launcher offline → muestra pantalla offline', async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 404 }))
+    vi.mocked(isLauncherAvailable).mockResolvedValue(false)
+
+    const { container } = render(<AppFrame app={APP_GATEWAY} />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+
+    expect(container.querySelector('.frame-offline')).toBeInTheDocument()
+  })
+})
+
 describe('App — stop-all al cerrar el portal', () => {
   it('beforeunload llama navigator.sendBeacon con /api/stop-all', () => {
     const sendBeaconMock = vi.fn()
@@ -601,7 +710,8 @@ describe('App — stop-all al cerrar el portal', () => {
     render(<PortalApp />)
     fireEvent(window, new Event('beforeunload'))
 
-    expect(sendBeaconMock).toHaveBeenCalledWith('http://localhost:4999/api/stop-all')
+    // En portal unificado el gateway escucha en :5174; el launcher legacy era :4999
+    expect(sendBeaconMock).toHaveBeenCalledWith(expect.stringMatching(/\/api\/stop-all$/))
   })
 })
 

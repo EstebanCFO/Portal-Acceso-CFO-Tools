@@ -17,6 +17,28 @@ vi.mock('../api/client', () => ({
 }))
 
 const noop = () => {}
+const ANIO_ACTUAL = new Date().getFullYear()
+
+// helpers reutilizables
+function renderOpen() {
+  return render(<UploadModal open onClose={noop} onSuccess={noop} />)
+}
+
+function seleccionarArchivo(container: Element, nombre = 'Bandas.xlsx') {
+  const input = container.querySelector('input[type="file"]') as HTMLInputElement
+  const file  = new File(['data'], nombre, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  Object.defineProperty(input, 'files', {
+    value: { 0: file, length: 1, item: () => file },
+    configurable: true,
+  })
+  fireEvent.change(input)
+  return file
+}
+
+function seleccionarMes(container: Element, mes = 'Junio') {
+  const selects = container.querySelectorAll('select')
+  fireEvent.change(selects[0], { target: { value: mes } })
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // UploadModal — cuando open=false
@@ -49,85 +71,159 @@ describe('UploadModal — cerrado (open=false)', () => {
 
 describe('UploadModal — abierto (open=true)', () => {
   it('renderiza el .modal-overlay cuando open=true', () => {
-    const { container } = render(
-      <UploadModal open onClose={noop} onSuccess={noop} />
-    )
+    const { container } = renderOpen()
     expect(container.querySelector('.modal-overlay')).toBeInTheDocument()
   })
 
   it('renderiza el .modal cuando open=true', () => {
-    const { container } = render(
-      <UploadModal open onClose={noop} onSuccess={noop} />
-    )
+    const { container } = renderOpen()
     expect(container.querySelector('.modal')).toBeInTheDocument()
   })
 
   it('muestra el header "Cargar nuevo Excel"', () => {
-    render(<UploadModal open onClose={noop} onSuccess={noop} />)
+    renderOpen()
     expect(screen.getByText('Cargar nuevo Excel')).toBeInTheDocument()
   })
 
   it('tiene .modal-header con el título', () => {
-    const { container } = render(
-      <UploadModal open onClose={noop} onSuccess={noop} />
-    )
+    const { container } = renderOpen()
     const header = container.querySelector('.modal-header')
     expect(header?.textContent).toBe('Cargar nuevo Excel')
   })
 
   it('renderiza .modal-body', () => {
-    const { container } = render(
-      <UploadModal open onClose={noop} onSuccess={noop} />
-    )
+    const { container } = renderOpen()
     expect(container.querySelector('.modal-body')).toBeInTheDocument()
   })
 
   it('renderiza .modal-footer', () => {
-    const { container } = render(
-      <UploadModal open onClose={noop} onSuccess={noop} />
-    )
+    const { container } = renderOpen()
     expect(container.querySelector('.modal-footer')).toBeInTheDocument()
   })
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
-// UploadModal — upload zone
+// UploadModal — zona de carga
 // ══════════════════════════════════════════════════════════════════════════════
 
 describe('UploadModal — zona de carga', () => {
   it('muestra el ícono de upload (SVG cloud-upload)', () => {
-    const { container } = render(<UploadModal open onClose={noop} onSuccess={noop} />)
-    // el icono es un SVG con aria-hidden; verificamos que la zona de upload existe
+    const { container } = renderOpen()
     const zone = container.querySelector('.upload-zone')
     expect(zone).toBeInTheDocument()
     expect(zone?.querySelector('svg')).toBeInTheDocument()
   })
 
   it('muestra el texto "Arrastra el archivo o hace click"', () => {
-    render(<UploadModal open onClose={noop} onSuccess={noop} />)
+    renderOpen()
     expect(screen.getByText('Arrastra el archivo o hace click')).toBeInTheDocument()
   })
 
   it('muestra el caption "Solo archivos .xlsx"', () => {
-    render(<UploadModal open onClose={noop} onSuccess={noop} />)
+    renderOpen()
     expect(screen.getByText('Solo archivos .xlsx')).toBeInTheDocument()
   })
 
   it('incluye un input type=file oculto', () => {
-    const { container } = render(
-      <UploadModal open onClose={noop} onSuccess={noop} />
-    )
+    const { container } = renderOpen()
     const input = container.querySelector('input[type="file"]')
     expect(input).toBeInTheDocument()
     expect((input as HTMLInputElement)?.style.display).toBe('none')
   })
 
   it('el input acepta solo .xlsx', () => {
-    const { container } = render(
-      <UploadModal open onClose={noop} onSuccess={noop} />
-    )
+    const { container } = renderOpen()
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     expect(input?.accept).toBe('.xlsx')
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// UploadModal — selector de mes y año
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('UploadModal — selector de mes y año', () => {
+  it('renderiza el label "Mes *"', () => {
+    renderOpen()
+    expect(screen.getByText('Mes *')).toBeInTheDocument()
+  })
+
+  it('renderiza el label "Año *"', () => {
+    renderOpen()
+    expect(screen.getByText('Año *')).toBeInTheDocument()
+  })
+
+  it('el selector de mes tiene 13 opciones (placeholder + 12 meses)', () => {
+    const { container } = renderOpen()
+    const selects = container.querySelectorAll('select')
+    expect(selects.length).toBeGreaterThanOrEqual(2)
+    // primer select = mes
+    expect(selects[0].options.length).toBe(13)
+  })
+
+  it('el selector de mes contiene los 12 meses en español', () => {
+    const { container } = renderOpen()
+    const mesSelect = container.querySelectorAll('select')[0]
+    const opciones   = Array.from(mesSelect.options).map(o => o.value)
+    expect(opciones).toContain('Enero')
+    expect(opciones).toContain('Junio')
+    expect(opciones).toContain('Diciembre')
+  })
+
+  it('el selector de año incluye el año actual', () => {
+    const { container } = renderOpen()
+    const anioSelect = container.querySelectorAll('select')[1]
+    const opciones   = Array.from(anioSelect.options).map(o => o.value)
+    expect(opciones).toContain(String(ANIO_ACTUAL))
+  })
+
+  it('el selector de año tiene el año actual seleccionado por defecto', () => {
+    const { container } = renderOpen()
+    const anioSelect = container.querySelectorAll('select')[1] as HTMLSelectElement
+    expect(anioSelect.value).toBe(String(ANIO_ACTUAL))
+  })
+
+  it('el selector de mes comienza vacío (sin mes seleccionado)', () => {
+    const { container } = renderOpen()
+    const mesSelect = container.querySelectorAll('select')[0] as HTMLSelectElement
+    expect(mesSelect.value).toBe('')
+  })
+
+  it('muestra el aviso "Seleccioná el mes antes de importar" cuando no hay mes', () => {
+    renderOpen()
+    expect(screen.getByText(/Seleccioná el mes antes de importar/)).toBeInTheDocument()
+  })
+
+  it('el aviso de mes desaparece al seleccionar un mes', () => {
+    const { container } = renderOpen()
+    seleccionarMes(container, 'Junio')
+    expect(screen.queryByText(/Seleccioná el mes antes de importar/)).not.toBeInTheDocument()
+  })
+
+  it('muestra el texto de confirmación de solapa al seleccionar un mes', () => {
+    const { container } = renderOpen()
+    seleccionarMes(container, 'Junio')
+    expect(screen.getByText(/Se leerá la solapa/)).toBeInTheDocument()
+  })
+
+  it('el texto de confirmación incluye el mes seleccionado', () => {
+    const { container } = renderOpen()
+    seleccionarMes(container, 'Junio')
+    // La confirmación menciona el nombre de la solapa
+    expect(container.querySelector('p')?.textContent).toContain('Junio')
+  })
+
+  it('la confirmación muestra el período correcto (YYYY-MM) para Junio', () => {
+    const { container } = renderOpen()
+    seleccionarMes(container, 'Junio')
+    const textoConfirmacion = Array.from(container.querySelectorAll('p'))
+      .find(p => p.textContent?.includes('Período'))?.textContent ?? ''
+    expect(textoConfirmacion).toContain(`${ANIO_ACTUAL}-06`)
+  })
+
+  it('la confirmación NO se muestra cuando no hay mes seleccionado', () => {
+    renderOpen()
+    expect(screen.queryByText(/Se leerá la solapa/)).not.toBeInTheDocument()
   })
 })
 
@@ -137,41 +233,59 @@ describe('UploadModal — zona de carga', () => {
 
 describe('UploadModal — botones', () => {
   it('tiene un botón "Cancelar"', () => {
-    render(<UploadModal open onClose={noop} onSuccess={noop} />)
+    renderOpen()
     expect(screen.getByText('Cancelar')).toBeInTheDocument()
   })
 
   it('tiene un botón "Importar"', () => {
-    render(<UploadModal open onClose={noop} onSuccess={noop} />)
+    renderOpen()
     expect(screen.getByText('Importar')).toBeInTheDocument()
   })
 
-  it('el botón "Importar" está deshabilitado sin archivo seleccionado', () => {
-    render(<UploadModal open onClose={noop} onSuccess={noop} />)
+  it('el botón "Importar" está deshabilitado sin archivo ni mes', () => {
+    renderOpen()
     const importar = screen.getByText('Importar').closest('button')
     expect(importar).toBeDisabled()
   })
 
+  it('el botón "Importar" está deshabilitado con archivo pero sin mes', () => {
+    const { container } = renderOpen()
+    seleccionarArchivo(container)
+    // mes sigue vacío → debe seguir deshabilitado
+    const importar = screen.getByText('Importar').closest('button')
+    expect(importar).toBeDisabled()
+  })
+
+  it('el botón "Importar" está deshabilitado con mes pero sin archivo', () => {
+    const { container } = renderOpen()
+    seleccionarMes(container, 'Junio')
+    // archivo sigue vacío → debe seguir deshabilitado
+    const importar = screen.getByText('Importar').closest('button')
+    expect(importar).toBeDisabled()
+  })
+
+  it('el botón "Importar" se habilita con archivo Y mes seleccionados', () => {
+    const { container } = renderOpen()
+    seleccionarArchivo(container)
+    seleccionarMes(container, 'Junio')
+    const importar = screen.getByText('Importar').closest('button')
+    expect(importar).not.toBeDisabled()
+  })
+
   it('el botón "Cancelar" NO está deshabilitado inicialmente', () => {
-    render(<UploadModal open onClose={noop} onSuccess={noop} />)
+    renderOpen()
     const cancelar = screen.getByText('Cancelar').closest('button')
     expect(cancelar).not.toBeDisabled()
   })
 
   it('el botón "Cancelar" tiene clase btn-ghost', () => {
-    const { container } = render(
-      <UploadModal open onClose={noop} onSuccess={noop} />
-    )
-    const btns = container.querySelectorAll('.btn-ghost')
-    expect(btns.length).toBeGreaterThan(0)
+    const { container } = renderOpen()
+    expect(container.querySelectorAll('.btn-ghost').length).toBeGreaterThan(0)
   })
 
   it('el botón "Importar" tiene clase btn-primary', () => {
-    const { container } = render(
-      <UploadModal open onClose={noop} onSuccess={noop} />
-    )
-    const btns = container.querySelectorAll('.btn-primary')
-    expect(btns.length).toBeGreaterThan(0)
+    const { container } = renderOpen()
+    expect(container.querySelectorAll('.btn-primary').length).toBeGreaterThan(0)
   })
 })
 
@@ -214,13 +328,10 @@ describe('UploadModal — callback onClose', () => {
 
 describe('UploadModal — validación de tipo de archivo', () => {
   it('muestra error si se sube un archivo que no es .xlsx', () => {
-    const { container } = render(
-      <UploadModal open onClose={noop} onSuccess={noop} />
-    )
+    const { container } = renderOpen()
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     const file = new File(['content'], 'documento.pdf', { type: 'application/pdf' })
 
-    // Simula la selección del archivo vía el change handler
     Object.defineProperty(input, 'files', {
       value: { 0: file, length: 1, item: () => file },
       configurable: true,
@@ -231,9 +342,7 @@ describe('UploadModal — validación de tipo de archivo', () => {
   })
 
   it('el mensaje de error tiene clase .alert-error', () => {
-    const { container } = render(
-      <UploadModal open onClose={noop} onSuccess={noop} />
-    )
+    const { container } = renderOpen()
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
     const file = new File(['x'], 'test.pdf', { type: 'application/pdf' })
 
@@ -248,14 +357,27 @@ describe('UploadModal — validación de tipo de archivo', () => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
-// UploadModal — texto informativo
+// UploadModal — estado después de seleccionar archivo .xlsx
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe('UploadModal — texto informativo', () => {
-  it('muestra el texto sobre la convención de nombres de archivo', () => {
-    render(<UploadModal open onClose={noop} onSuccess={noop} />)
-    expect(
-      screen.getByText(/El periodo se extrae del nombre del archivo/)
-    ).toBeInTheDocument()
+describe('UploadModal — estado con archivo válido seleccionado', () => {
+  it('muestra el nombre del archivo al seleccionar un .xlsx', () => {
+    const { container } = renderOpen()
+    seleccionarArchivo(container, 'Bandas Junio 2026.xlsx')
+    expect(screen.getByText('Bandas Junio 2026.xlsx')).toBeInTheDocument()
+  })
+
+  it('muestra el SVG de check al seleccionar un archivo válido', () => {
+    const { container } = renderOpen()
+    seleccionarArchivo(container)
+    const zone = container.querySelector('.upload-zone.has-file')
+    expect(zone).toBeInTheDocument()
+    expect(zone?.querySelector('svg')).toBeInTheDocument()
+  })
+
+  it('agrega clase .has-file a la zona de carga', () => {
+    const { container } = renderOpen()
+    seleccionarArchivo(container)
+    expect(container.querySelector('.upload-zone.has-file')).toBeInTheDocument()
   })
 })
