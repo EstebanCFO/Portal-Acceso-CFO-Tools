@@ -177,9 +177,11 @@ public class SurveyMonkeyService
     public async Task<SurveyForYearResponse> GetOpenSurveysForYearAsync(
         int year, CancellationToken ct = default)
     {
-        // Trae todas las encuestas OPEN (hasta 200 — para cuentas más grandes paginar)
+        // Trae todas las encuestas (sin filtro de status — el filtro ?status=open
+        // no está disponible en todos los planes de SurveyMonkey y devuelve 400/403).
+        // Se filtra por año en memoria después.
         var url = $"{_baseUrl}/surveys"
-                + "?status=open&per_page=200"
+                + "?per_page=200"
                 + "&include=response_count,date_created,date_modified";
 
         var resp = await _http.GetAsync(url, ct);

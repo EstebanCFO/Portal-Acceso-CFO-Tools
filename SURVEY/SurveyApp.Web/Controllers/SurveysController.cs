@@ -52,10 +52,16 @@ public class SurveysController : ControllerBase
             return ex.StatusCode switch
             {
                 System.Net.HttpStatusCode.Unauthorized =>
-                    Unauthorized(new { error = "Token de SurveyMonkey inválido o vencido." }),
+                    Unauthorized(new { error = "Token de SurveyMonkey inválido o vencido. Verificá appsettings.json." }),
                 System.Net.HttpStatusCode.TooManyRequests =>
                     StatusCode(429, new { error = "Límite de requests alcanzado. Intentar en unos minutos." }),
-                _ => StatusCode(502, new { error = $"Error de SurveyMonkey: {ex.StatusCode}" })
+                System.Net.HttpStatusCode.BadRequest =>
+                    StatusCode(502, new { error = $"SurveyMonkey rechazó la solicitud (400 Bad Request). {ex.Message}" }),
+                System.Net.HttpStatusCode.Forbidden =>
+                    StatusCode(502, new { error = "SurveyMonkey rechazó el token (403 Forbidden). Verificá los permisos de la app en developer.surveymonkey.com." }),
+                null =>
+                    StatusCode(502, new { error = $"No se pudo conectar con SurveyMonkey (error de red). {ex.Message}" }),
+                _ => StatusCode(502, new { error = $"Error de SurveyMonkey (HTTP {(int?)ex.StatusCode}: {ex.StatusCode}). {ex.Message}" })
             };
         }
     }

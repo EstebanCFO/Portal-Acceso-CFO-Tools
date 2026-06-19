@@ -12,7 +12,8 @@ import type { CandidateAnalysis } from '../types'
 interface Doc {
   name:    string
   text:    string
-  summary: string | null
+  // undefined = cargando resumen, null = falló el resumen, string = resumen listo
+  summary: string | null | undefined
 }
 
 interface CandidateItem {
@@ -294,11 +295,16 @@ export default function JobMatcher() {
     try {
       const up = await apiUpload(file)
       if (!up.success || !up.text) throw new Error('No se pudo extraer el texto del archivo.')
-      setJD({ name: file.name, text: up.text, summary: null })
-      // Generar resumen asíncrono (no bloquea)
+      // summary=undefined → spinner "Generando resumen…"
+      setJD({ name: file.name, text: up.text, summary: undefined })
+      // Generar resumen asíncrono (no bloquea el paso a candidatos)
       apiSummarize(up.text, 'job').then(sr => {
+        // success: resumen listo; !success: summary=null muestra "no disponible"
         setJD(prev => prev ? { ...prev, summary: sr.success ? sr.summary : null } : prev)
-      }).catch(() => {})
+      }).catch(() => {
+        // Error (API no disponible, timeout, etc.) → dejar de girar y avisar
+        setJD(prev => prev ? { ...prev, summary: null } : prev)
+      })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al leer el Job Description.')
     } finally {
@@ -315,10 +321,12 @@ export default function JobMatcher() {
     try {
       const up = await apiUpload(file)
       if (!up.success || !up.text) throw new Error('No se pudo extraer el texto del archivo.')
-      setProject({ name: file.name, text: up.text, summary: null })
+      setProject({ name: file.name, text: up.text, summary: undefined })
       apiSummarize(up.text, 'project').then(sr => {
         setProject(prev => prev ? { ...prev, summary: sr.success ? sr.summary : null } : prev)
-      }).catch(() => {})
+      }).catch(() => {
+        setProject(prev => prev ? { ...prev, summary: null } : prev)
+      })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al leer el documento de proyecto.')
     } finally {
@@ -481,10 +489,12 @@ export default function JobMatcher() {
               <div className="mt-8">
                 <p className="text-sm" style={{ marginBottom: 4 }}>Resumen estructurado:</p>
                 <div
-                  className={`summary-box ${!jd.summary ? 'loading' : ''}`}
+                  className={`summary-box ${jd.summary === undefined ? 'loading' : ''}`}
                   dangerouslySetInnerHTML={{
-                    __html: jd.summary
+                    __html: jd.summary !== undefined && jd.summary !== null
                       ? mdToHtml(jd.summary)
+                      : jd.summary === null
+                      ? '<span style="color:var(--text2);font-style:italic">Resumen no disponible (Claude no respondió — podés continuar igual)</span>'
                       : '<div style="display:flex;align-items:center;gap:8px"><div class="spinner-sm"></div><span>Generando resumen con Claude...</span></div>',
                   }}
                 />
@@ -523,10 +533,12 @@ export default function JobMatcher() {
               <div className="mt-8">
                 <p className="text-sm" style={{ marginBottom: 4 }}>Resumen estructurado:</p>
                 <div
-                  className={`summary-box ${!project.summary ? 'loading' : ''}`}
+                  className={`summary-box ${project.summary === undefined ? 'loading' : ''}`}
                   dangerouslySetInnerHTML={{
-                    __html: project.summary
+                    __html: project.summary !== undefined && project.summary !== null
                       ? mdToHtml(project.summary)
+                      : project.summary === null
+                      ? '<span style="color:var(--text2);font-style:italic">Resumen no disponible (Claude no respondió — podés continuar igual)</span>'
                       : '<div style="display:flex;align-items:center;gap:8px"><div class="spinner-sm"></div><span>Generando resumen con Claude...</span></div>',
                   }}
                 />
