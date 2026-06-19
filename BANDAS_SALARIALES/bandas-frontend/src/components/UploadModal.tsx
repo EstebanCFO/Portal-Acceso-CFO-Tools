@@ -56,11 +56,15 @@ export default function UploadModal({ open, onClose, onSuccess }: Props) {
     setLoading(true)
     setResult(null)
 
-    const mesObj  = MESES.find(m => m.label === mes)!
-    const periodo = `${anio}-${mesObj.num}`   // e.g. "2026-06"
+    const mesObj       = MESES.find(m => m.label === mes)!
+    const periodo      = `${anio}-${mesObj.num}`   // e.g. "2026-06"
+    // Solapa: "Junio 26" — nombre del mes + últimos 2 dígitos del año.
+    // El ETL Python hace matching case-insensitive, por lo que "junio 26",
+    // "JUNIO 26" y "Junio 26" en el Excel quedan todos cubiertos.
+    const solapaTarget = `${mes} ${anio.slice(-2)}`
 
     try {
-      const { data } = await uploadExcel(file, mes, periodo)
+      const { data } = await uploadExcel(file, solapaTarget, periodo)
       setResult({ status: data.status, message: data.message })
       if (data.status === 'ok') onSuccess()
     } catch (err: unknown) {
@@ -153,7 +157,7 @@ export default function UploadModal({ open, onClose, onSuccess }: Props) {
 
           {mes && (
             <p className="caption" style={{ marginBottom: 10, color: 'var(--green-d)' }}>
-              Se leerá la solapa <strong>"{mes}"</strong> del archivo · Período: <strong>{anio}-{MESES.find(m => m.label === mes)!.num}</strong>
+              Se leerá la solapa <strong>"{mes} {anio.slice(-2)}"</strong> del archivo · Período: <strong>{anio}-{MESES.find(m => m.label === mes)!.num}</strong>
             </p>
           )}
 

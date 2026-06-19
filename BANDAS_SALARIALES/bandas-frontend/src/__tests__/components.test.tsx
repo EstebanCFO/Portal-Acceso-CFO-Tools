@@ -4,8 +4,9 @@
  * Incluye: UploadModal
  */
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import UploadModal from '../components/UploadModal'
+import { uploadExcel } from '../api/client'
 
 // ── Mock del cliente API (axios) ──────────────────────────────────────────────
 // UploadModal importa uploadExcel de '../api/client'.
@@ -213,6 +214,15 @@ describe('UploadModal — selector de mes y año', () => {
     expect(container.querySelector('p')?.textContent).toContain('Junio')
   })
 
+  it('la solapa mostrada en la confirmación incluye los últimos 2 dígitos del año', () => {
+    const { container } = renderOpen()
+    seleccionarMes(container, 'Junio')
+    const solapaEsperada = `Junio ${String(ANIO_ACTUAL).slice(-2)}`  // e.g. "Junio 26"
+    const parrafoSolapa = Array.from(container.querySelectorAll('p'))
+      .find(p => p.textContent?.includes('Se leerá la solapa'))
+    expect(parrafoSolapa?.textContent).toContain(solapaEsperada)
+  })
+
   it('la confirmación muestra el período correcto (YYYY-MM) para Junio', () => {
     const { container } = renderOpen()
     seleccionarMes(container, 'Junio')
@@ -286,6 +296,25 @@ describe('UploadModal — botones', () => {
   it('el botón "Importar" tiene clase btn-primary', () => {
     const { container } = renderOpen()
     expect(container.querySelectorAll('.btn-primary').length).toBeGreaterThan(0)
+  })
+
+  it('al importar envía la solapa como "Mes YY" (nombre + últimos 2 dígitos del año)', async () => {
+    // La solapa esperada: "Junio" + " " + últimos 2 dígitos del año actual
+    const solapaEsperada = `Junio ${String(ANIO_ACTUAL).slice(-2)}`
+    const periodoEsperado = `${ANIO_ACTUAL}-06`
+
+    const { container } = renderOpen()
+    seleccionarArchivo(container)
+    seleccionarMes(container, 'Junio')
+    fireEvent.click(screen.getByText('Importar'))
+
+    await waitFor(() => {
+      expect(vi.mocked(uploadExcel)).toHaveBeenCalledWith(
+        expect.any(File),
+        solapaEsperada,
+        periodoEsperado,
+      )
+    })
   })
 })
 
