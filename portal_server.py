@@ -391,7 +391,12 @@ _http: dict[str, httpx.AsyncClient] = {}
 
 async def _client(key: str) -> httpx.AsyncClient:
     if key not in _http:
-        _http[key] = httpx.AsyncClient(timeout=httpx.Timeout(60.0), follow_redirects=True)
+        # read=300s: Claude API puede tardar 2-3 min para CVs largos o análisis complejos.
+        # connect=10s: si el backend no responde en 10s en la conexión inicial, ya está caído.
+        _http[key] = httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=10.0, read=300.0, write=60.0, pool=10.0),
+            follow_redirects=True,
+        )
     return _http[key]
 
 
@@ -438,7 +443,19 @@ async def proxy_api(app_id: str, path: str, request: Request):
             headers=headers, content=body,
         )
     except httpx.ConnectError:
-        raise HTTPException(503, detail=f"Backend {app_id} no disponible en :{port}")
+        s = _status.get(app_id, {})
+        detail = (
+            f"Backend {app_id} aún iniciando — esperá unos segundos e intentá de nuevo."
+            if s.get('backend') == 'launching'
+            else f"Backend {app_id} no disponible en :{port}"
+        )
+        raise HTTPException(503, detail=detail)
+    except httpx.TimeoutException:
+        raise HTTPException(
+            504,
+            detail=f"Backend {app_id} tardó demasiado en responder. "
+                   "La operación puede estar en proceso — intentá de nuevo en un momento.",
+        )
 
     # Filtrar headers de respuesta que httpx ya maneja
     skip_resp = {'content-encoding', 'transfer-encoding', 'content-length', 'connection'}

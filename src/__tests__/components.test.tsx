@@ -714,10 +714,11 @@ describe('App — stop-all al cerrar el portal', () => {
     expect(sendBeaconMock).toHaveBeenCalledWith(expect.stringMatching(/\/api\/stop-all$/))
   })
 
-  it('click en "Salir" llama /api/shutdown-portal y luego window.close()', async () => {
-    // Mock fetch: primero resuelve el shutdown-portal, luego cualquier otro call
+  it('click en "Salir" llama /api/stop-all y muestra el overlay de cierre', async () => {
+    // window.close() ya NO se llama: los browsers lo bloquean si la pestaña no fue
+    // abierta con window.open(). En su lugar mostramos un overlay de "sesión finalizada".
     vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify({ ok: true, message: 'Portal cerrándose…' }), {
+      new Response(JSON.stringify({ ok: true }), {
         status: 200, headers: { 'Content-Type': 'application/json' },
       }),
     )
@@ -729,17 +730,48 @@ describe('App — stop-all al cerrar el portal', () => {
       fireEvent.click(screen.getByText('Salir'))
     })
 
-    // Verificar que se llamó al endpoint shutdown-portal
+    // Verificar que se llamó a stop-all (no a shutdown-portal)
+    const stopAllCall = vi.mocked(fetch).mock.calls.find(
+      ([url]) => typeof url === 'string' && url.includes('stop-all'),
+    )
+    expect(stopAllCall).toBeDefined()
+    expect(stopAllCall![1]).toMatchObject({ method: 'POST' })
+
+    // shutdown-portal NO debe llamarse: el gateway sigue corriendo en background
     const shutdownCall = vi.mocked(fetch).mock.calls.find(
       ([url]) => typeof url === 'string' && url.includes('shutdown-portal'),
     )
-    expect(shutdownCall).toBeDefined()
-    expect(shutdownCall![1]).toMatchObject({ method: 'POST' })
+    expect(shutdownCall).toBeUndefined()
 
-    // Verificar que se intentó cerrar la pestaña
-    expect(closeSpy).toHaveBeenCalledTimes(1)
+    // window.close() NO debe llamarse: no funciona en browsers modernos sin window.open()
+    expect(closeSpy).not.toHaveBeenCalled()
+
+    // En su lugar, debe aparecer el overlay de "sesión finalizada"
+    expect(screen.getByText('Sesión finalizada')).toBeInTheDocument()
+    expect(screen.getByText(/podés cerrar esta pestaña/i)).toBeInTheDocument()
+
+    // El botón "← Volver al portal" permite deshacer el cierre
+    expect(screen.getByText(/volver al portal/i)).toBeInTheDocument()
 
     closeSpy.mockRestore()
+  })
+
+  it('el botón "← Volver al portal" en el overlay reactiva el portal', async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ ok: true }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    }))
+
+    render(<PortalApp />)
+
+    // Abrir overlay
+    await act(async () => { fireEvent.click(screen.getByText('Salir')) })
+    expect(screen.getByText('Sesión finalizada')).toBeInTheDocument()
+
+    // Volver al portal
+    await act(async () => { fireEvent.click(screen.getByText(/volver al portal/i)) })
+    expect(screen.queryByText('Sesión finalizada')).not.toBeInTheDocument()
+    // El portal vuelve a mostrar el header con el botón Salir
+    expect(screen.getByText('Salir')).toBeInTheDocument()
   })
 })
 

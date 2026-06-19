@@ -36,7 +36,12 @@ async function stopApp(appId: string): Promise<void> {
 }
 
 export default function App() {
-  const [activeApp, setActiveApp] = useState<App | null>(null)
+  const [activeApp,    setActiveApp]    = useState<App | null>(null)
+  // portalStopped: true después de hacer clic en "Salir" → muestra overlay de cierre.
+  // window.close() es bloqueado por los browsers modernos cuando la pestaña no fue
+  // abierta por script (window.open), así que mostramos una pantalla de confirmación
+  // en lugar de intentar cerrar la pestaña programáticamente.
+  const [portalStopped, setPortalStopped] = useState(false)
 
   // ── "← Volver" en el header del portal ───────────────────────────────────
   // Baja el servidor de la app activa (via launcher) y vuelve al Dashboard.
@@ -47,17 +52,17 @@ export default function App() {
   }
 
   // ── "Salir" en el header (sin app activa) ────────────────────────────────
-  // 1. Baja todos los subprocesos de las apps (backends + frontends).
-  // 2. Apaga el gateway FastAPI (libera el puerto :5174).
-  // 3. Cierra la pestaña del browser.
+  // Detiene los subprocesos de las apps y muestra un overlay de cierre.
+  // NO mata el gateway (shutdown-portal): eso causaba que la pestaña quedara
+  // conectada a un servidor muerto, y window.close() es bloqueado por los
+  // browsers modernos cuando la pestaña no fue abierta con window.open().
   async function handleSalirPortal() {
+    setPortalStopped(true)
     try {
-      // /api/shutdown-portal detiene subprocesos Y mata uvicorn después de responder
-      await fetch(`${LAUNCHER}/api/shutdown-portal`, { method: 'POST' })
+      await fetch(`${LAUNCHER}/api/stop-all`, { method: 'POST' })
     } catch {
-      // Gateway ya no disponible — continuar igual
+      // Gateway no disponible o ya caído — igual mostramos el overlay
     }
-    window.close()
   }
 
   // ── beforeunload — seguro de cierre ──────────────────────────────────────
@@ -90,6 +95,54 @@ export default function App() {
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
   }, [])
+
+  // ── Overlay "portal detenido" ─────────────────────────────────────────────
+  // Se muestra tras hacer clic en "Salir". El gateway sigue corriendo en background;
+  // el usuario cierra la pestaña manualmente (Ctrl+W / Cmd+W).
+  if (portalStopped) {
+    return (
+      <div
+        className="portal-root"
+        style={{
+          background: 'var(--navy-dark, #0B1526)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'column',
+          gap: 20,
+          color: '#fff',
+          textAlign: 'center',
+          padding: 32,
+        }}
+        aria-label="Portal detenido"
+      >
+        <div style={{ fontSize: 52, lineHeight: 1 }}>✅</div>
+        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Sesión finalizada</h2>
+        <p style={{ margin: 0, color: 'rgba(255,255,255,.60)', fontSize: 14, maxWidth: 340 }}>
+          Los servicios han sido detenidos.<br />
+          Podés cerrar esta pestaña cuando quieras.
+        </p>
+        <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,.30)', letterSpacing: '.5px' }}>
+          Ctrl+W &nbsp;/&nbsp; Cmd+W
+        </p>
+        <button
+          style={{
+            marginTop: 8,
+            padding: '8px 24px',
+            borderRadius: 20,
+            border: '1px solid rgba(255,255,255,.22)',
+            background: 'transparent',
+            color: '#fff',
+            cursor: 'pointer',
+            fontSize: 13,
+          }}
+          onClick={() => setPortalStopped(false)}
+        >
+          ← Volver al portal
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="portal-root">

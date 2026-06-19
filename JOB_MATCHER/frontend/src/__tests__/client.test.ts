@@ -173,11 +173,42 @@ describe('manejo de errores en apiUpload', () => {
 describe('manejo de errores en apiAnalyzeCandidate', () => {
   beforeEach(() => vi.mocked(fetch).mockClear())
 
-  it('lanza Error cuando Claude no está disponible', async () => {
+  it('lanza Error cuando Claude no está disponible (503)', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(mockErr(503, { error: 'Claude API no disponible' }))
     await expect(
       apiAnalyzeCandidate({ candidateName: 'Test', candidateText: 'cv', jobText: 'jd' })
     ).rejects.toThrow('Claude API no disponible')
+  })
+
+  it('lanza Error con "HTTP 504" cuando el gateway hace timeout (operación larga de IA)', async () => {
+    // El gateway tiene read=300s para Claude API, pero si aun así supera ese límite,
+    // devuelve 504. El frontend debe propagarlo como Error limpio (no quedarse en spinner).
+    vi.mocked(fetch).mockResolvedValueOnce(
+      mockErr(504, { detail: 'Backend job-matcher tardó demasiado en responder.' })
+    )
+    await expect(
+      apiAnalyzeCandidate({ candidateName: 'Test', candidateText: 'cv', jobText: 'jd' })
+    ).rejects.toThrow('HTTP 504')
+  })
+
+  it('lanza Error "HTTP 504" cuando el body no tiene campo "error" (fastapi detail)', async () => {
+    // FastAPI devuelve {"detail": "..."} pero el cliente busca "error".
+    // El fallback `HTTP ${status}` garantiza que siempre se lanza un Error descriptivo.
+    vi.mocked(fetch).mockResolvedValueOnce(mockErr(504, {}))
+    await expect(
+      apiAnalyzeCandidate({ candidateName: 'Test', candidateText: 'cv', jobText: 'jd' })
+    ).rejects.toThrow('HTTP 504')
+  })
+
+  it('lanza Error cuando el backend aún está iniciando (503 sin campo error)', async () => {
+    // El gateway devuelve 503 con {"detail": "..."} cuando el backend está en 'launching'.
+    // El cliente no tiene campo "error" → lanza "HTTP 503".
+    vi.mocked(fetch).mockResolvedValueOnce(
+      mockErr(503, { detail: 'Backend job-matcher aún iniciando — esperá unos segundos.' })
+    )
+    await expect(
+      apiAnalyzeCandidate({ candidateName: 'Test', candidateText: 'cv', jobText: 'jd' })
+    ).rejects.toThrow('HTTP 503')
   })
 })
 
