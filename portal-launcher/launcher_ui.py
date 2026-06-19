@@ -298,7 +298,30 @@ class LauncherUI:
         _kill_port(PORTAL_PORT)
         time.sleep(0.4)
 
-        # 2. pip install — dependencias del gateway (uvicorn, fastapi, httpx, etc.)
+        # 2. Limpiar caché del portal antes de arrancar
+        #    · __pycache__ en la raíz → bytecode viejo del gateway
+        #    · node_modules/.vite/    → caché de módulos del Vite dev server
+        #    Esto garantiza que el gateway y el frontend arrancan con código fresco
+        #    sin necesidad de borrar manualmente o reiniciar el sistema.
+        self._set_step('Limpiando caché…')
+        import shutil as _shutil
+        # Python bytecode — raíz del portal
+        for _cache in ['__pycache__', 'portal-launcher/__pycache__']:
+            _cache_path = os.path.join(BASE_DIR, _cache)
+            if os.path.isdir(_cache_path):
+                try:
+                    _shutil.rmtree(_cache_path, ignore_errors=True)
+                except Exception:
+                    pass
+        # Vite module cache — puede crecer y causar problemas de resolución de módulos
+        _vite_cache = os.path.join(BASE_DIR, 'node_modules', '.vite')
+        if os.path.isdir(_vite_cache):
+            try:
+                _shutil.rmtree(_vite_cache, ignore_errors=True)
+            except Exception:
+                pass
+
+        # 3. pip install — dependencias del gateway (uvicorn, fastapi, httpx, etc.)
         self._set_step('Verificando dependencias…')
         import importlib.util as _il
         _pkgs = ['uvicorn', 'fastapi', 'httpx', 'dotenv']
@@ -310,7 +333,7 @@ class LauncherUI:
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
 
-        # 3. Arrancar portal_server.py (gateway unificado en PORTAL_PORT)
+        # 4. Arrancar portal_server.py (gateway unificado en PORTAL_PORT)
         self._set_step('Iniciando plataforma…')
         local_portal = f'http://localhost:{PORTAL_PORT}'
         gateway_script = os.path.join(BASE_DIR, 'portal_server.py')
@@ -320,7 +343,7 @@ class LauncherUI:
                 BASE_DIR,
             )
 
-        # 4. Esperar a que el gateway responda (hasta 45s — arranca backends en background)
+        # 5. Esperar a que el gateway responda (hasta 45s — arranca backends en background)
         self._set_step('')
         deadline = time.time() + 45
         while time.time() < deadline:

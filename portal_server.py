@@ -483,6 +483,21 @@ async def _proxy_vite(port: int, path: str, request: Request) -> Response:
         )
 
 
+# ── Headers de caché para archivos estáticos ─────────────────────────────────
+# index.html → no-cache: el browser re-valida antes de usar la copia local.
+#   Garantiza que los hashes de JS/CSS actualizados se reflejan sin Ctrl+Shift+R.
+# assets/* → immutable 1 año: Vite nombra assets con hash de contenido.
+#   Si el contenido cambia, el nombre cambia → siempre fresco sin perder caché.
+_NO_CACHE = {
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma':        'no-cache',
+    'Expires':       '0',
+}
+_ASSET_CACHE = {
+    'Cache-Control': 'public, max-age=31536000, immutable',
+}
+
+
 @app.get('/apps/{app_id}/{path:path}')
 async def serve_app_frontend(app_id: str, path: str, request: Request):
     """Sirve el frontend de cualquier app: estático desde dist/ o proxy Vite."""
@@ -497,9 +512,12 @@ async def serve_app_frontend(app_id: str, path: str, request: Request):
         if path:
             candidate = dist / path
             if candidate.is_file():
+                # assets/ tiene hash de contenido → caché larga (inmutable)
+                if path.startswith('assets/'):
+                    return FileResponse(str(candidate), headers=_ASSET_CACHE)
                 return FileResponse(str(candidate))
-        # SPA fallback → React Router maneja el resto
-        return FileResponse(str(dist / 'index.html'))
+        # SPA fallback: index.html nunca se cachea (hashes cambian en cada build)
+        return FileResponse(str(dist / 'index.html'), headers=_NO_CACHE)
 
     # ── Modo dev: proxy al Vite dev server ───────────────────────────────────
     dev_port = cfg.get('frontend_port')
@@ -533,8 +551,12 @@ async def serve_portal(path: str, request: Request):
     if PORTAL_DIST.exists():
         candidate = PORTAL_DIST / path
         if path and candidate.is_file():
+            # assets/ tienen hash en el nombre → caché larga (inmutables)
+            if path.startswith('assets/'):
+                return FileResponse(str(candidate), headers=_ASSET_CACHE)
             return FileResponse(str(candidate))
-        return FileResponse(str(PORTAL_DIST / 'index.html'))
+        # index.html → no-cache siempre (hashes JS/CSS cambian en cada build)
+        return FileResponse(str(PORTAL_DIST / 'index.html'), headers=_NO_CACHE)
 
     # Modo dev: proxy a Vite portal en :5175
     qs     = request.url.query
