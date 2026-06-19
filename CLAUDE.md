@@ -476,43 +476,61 @@ Escucha en `0.0.0.0` — accesible desde la red.
 
 Cuando el launcher arranca, lanza en background todas las apps de `APP_CONFIGS` sin esperar al usuario. Ideal para servidores donde se quiere que todo esté listo al llegar al portal.
 
-### Configuración `APP_CONFIGS` en `launcher.py`
+### Configuración `APPS` en `portal_server.py` (config actual — reemplaza `launcher.py`)
 
 ```python
-APP_CONFIGS = {
-  'reporte-devops': {
-    'backend':  { 'dir': 'REPORTE_DEV_OPS\\backend',  'cmd': 'python app.py',   'health': 'http://localhost:5000/api/health', 'timeout': 20 },
-    'frontend': { 'dir': 'REPORTE_DEV_OPS\\frontend', 'cmd': 'npm run dev',      'url': 'http://localhost:5001',               'timeout': 30 },
+APPS: dict[str, dict] = {
+  'sound-catch': {
+    # Backend: router FastAPI montado inline (sin subprocess ni puerto extra)
+    'backend_inline':  True,
+    'frontend_cmd':    'npm run dev',
+    'frontend_dir':    APPS_ROOT / 'Sound Catch' / 'web' / 'frontend',
+    'frontend_port':   5009,
+    'frontend_dist':   APPS_ROOT / 'Sound Catch' / 'web' / 'frontend' / 'dist',
   },
-  'bandas-salariales': {
-    'backend':  { 'dir': 'BANDAS_SALARIALES\\BandasSalariales.Web', 'cmd': 'dotnet run', 'health': 'http://localhost:5050/api/health', 'timeout': 40 },
-    'frontend': { 'dir': 'BANDAS_SALARIALES\\bandas-frontend',      'cmd': 'npm run dev', 'url': 'http://localhost:5173',              'timeout': 30 },
+  'reporte-devops': {
+    'backend_cmd':     '"python" app.py',      'backend_dir':     BASE_DIR / 'REPORTE_DEV_OPS' / 'backend',
+    'backend_port':    5000,                   'backend_health':  'http://localhost:5000/api/health',
+    'frontend_cmd':    'npm run dev',          'frontend_dir':    BASE_DIR / 'REPORTE_DEV_OPS' / 'frontend',
+    'frontend_port':   5001,                   'frontend_dist':   BASE_DIR / 'REPORTE_DEV_OPS' / 'frontend' / 'dist',
   },
   'job-matcher': {
-    'backend':  { 'dir': 'JOB_MATCHER\\backend',  'cmd': 'node server.js', 'health': 'http://localhost:5002/api/health', 'timeout': 15 },
-    'frontend': { 'dir': 'JOB_MATCHER\\frontend', 'cmd': 'npm run dev',    'url': 'http://localhost:5003',               'timeout': 40 },
+    'backend_cmd':     'node server.js',       'backend_dir':     BASE_DIR / 'JOB_MATCHER' / 'backend',
+    'backend_port':    5002,                   'backend_health':  'http://localhost:5002/api/health',
+    'backend_path_prefix': '',                 # rutas mixtas: /upload, /analyze, /ask-question…
+    'frontend_cmd':    'npm run dev',          'frontend_dir':    BASE_DIR / 'JOB_MATCHER' / 'frontend',
+    'frontend_port':   5003,                   'frontend_dist':   BASE_DIR / 'JOB_MATCHER' / 'frontend' / 'dist',
+  },
+  'bandas-salariales': {
+    'backend_cmd':     'dotnet run',           'backend_dir':     BASE_DIR / 'BANDAS_SALARIALES' / 'BandasSalariales.Web',
+    'backend_port':    5050,                   'backend_health':  'http://localhost:5050/api/health',
+    'frontend_cmd':    'npm run dev',          'frontend_dir':    BASE_DIR / 'BANDAS_SALARIALES' / 'bandas-frontend',
+    'frontend_port':   5173,                   'frontend_dist':   BASE_DIR / 'BANDAS_SALARIALES' / 'bandas-frontend' / 'dist',
   },
   'survey': {
-    'backend':  { 'dir': 'SURVEY\\SurveyApp.Web',      'cmd': 'dotnet run',  'health': 'http://localhost:5055/api/health', 'timeout': 45 },
-    'frontend': { 'dir': 'SURVEY\\survey-frontend',    'cmd': 'npm run dev', 'url': 'http://localhost:5176',               'timeout': 35 },
+    'backend_cmd':     'dotnet run',           'backend_dir':     BASE_DIR / 'SURVEY' / 'SurveyApp.Web',
+    'backend_port':    5055,                   'backend_health':  'http://localhost:5055/api/health',
+    'frontend_cmd':    'npm run dev',          'frontend_dir':    BASE_DIR / 'SURVEY' / 'survey-frontend',
+    'frontend_port':   5176,                   'frontend_dist':   BASE_DIR / 'SURVEY' / 'survey-frontend' / 'dist',
   },
 }
 ```
 
-> Las URLs de health check son siempre `localhost` porque el launcher verifica sus propios procesos locales, independientemente del `APP_HOST` configurado para el browser.
+> `portal_server.py` reemplaza `launcher.py` como gestor de procesos. El launcher Flask legacy (:4999) queda como fallback (raramente usado).
 
-### Agregar una app nueva al launcher
+### Agregar una app nueva al gateway
 
-1. Agregar entrada en `APP_CONFIGS` en `launcher.py`
-2. El lanzador levanta backend → espera health → levanta frontend → espera URL
-3. El stop mata procesos Popen rastreados + `_kill_port()` como fallback
+1. Agregar entrada en `APPS` en `portal_server.py`
+2. Si el backend es FastAPI: usar `backend_inline: True` + `app.include_router(…, prefix='/api/{id}/api')`
+3. Si el backend es subprocess: especificar `backend_cmd`, `backend_health`, `backend_port`, `backend_timeout`
+4. Especificar `frontend_cmd`, `frontend_dir`, `frontend_port`, `frontend_dist`
 
 ---
 
 ## Apps del ecosistema CFOTech
 
 ```
-Portal de Acceso\
+C:\Esteban CFOTech\Portal de Acceso\          ← repo git principal
 ├── portal_server.py         ← ★ Gateway FastAPI :5174 — punto de entrada único
 ├── REPORTE_DEV_OPS\         ← Flask API :5000 + React/Vite :5001 → /apps/reporte-devops/
 ├── BANDAS_SALARIALES\       ← ASP.NET Core :5050 + React/Vite/CSS-DS :5173 → /apps/bandas-salariales/
@@ -522,6 +540,12 @@ Portal de Acceso\
 ├── SURVEY\                  ← ASP.NET Core :5055 + React/Vite :5176 → /apps/survey/
 ├── portal-launcher\         ← Flask :4999 (launcher legacy) + launcher_ui.py
 └── src\                     ← Portal shell React 19 + Vite 8 (build → dist/)
+
+C:\Esteban CFOTech\Sound Catch\               ← repo separado (fuera del portal git)
+└── web\
+    ├── backend\             ← FastAPI/Whisper — router.py montado INLINE en el gateway
+    │                           (sin subprocess, sin puerto extra en prod)
+    └── frontend\            ← React 19 + Vite :5009 → /apps/sound-catch/
 ```
 
 | Componente | Puerto(s) | Stack | URL en gateway |
@@ -532,16 +556,23 @@ Portal de Acceso\
 | Bandas Salariales | `:5173` front / `:5050` API | React 19 + Vite 8 + CSS DS / ASP.NET Core | `/apps/bandas-salariales/` |
 | Job Matcher + JD Generator | `:5003` front / `:5002` API | React 19 + Vite 8 / Node.js + Express | `/apps/job-matcher/` |
 | Survey Analytics | `:5176` front / `:5055` API | React 19 + Vite 8 / ASP.NET Core 8 | `/apps/survey/` |
+| **Sound Catch** | `:5009` front / inline API | React 19 + Vite 8 / FastAPI inline en gateway | `/apps/sound-catch/` |
 | Portal Launcher | `:4999` | Flask | legacy — `launcher_ui.py` ya no lo usa |
 
 ### Gateway routes (`portal_server.py`)
 
 | Ruta | Comportamiento |
 |------|---------------|
-| `/apps/{app_id}/{path}` | Dev: proxy al Vite dev server de la app. Prod: sirve `{APP_DIR}/dist/` |
+| `/apps/{app_id}/{path}` | Dev: proxy al Vite dev server de la app. Prod: sirve `{APP_DIR}/dist/` con `Cache-Control` apropiado |
+| `/api/sound-catch/api/{path}` | Router FastAPI de Sound Catch montado inline (`include_router`) — sin subprocess |
 | `/api/{app_id}/{path}` | Proxy al backend de la app (Flask/dotnet/Node) |
 | `/api/health` | Health check del gateway |
-| `/{path}` (catch-all) | Dev: proxy al portal Vite `:5175`. Prod: sirve `dist/index.html` |
+| `/api/shutdown-portal` | Detiene todos los subprocesos + apaga uvicorn con `os._exit(0)` tras 600ms |
+| `/{path}` (catch-all) | Dev: proxy al portal Vite `:5175`. Prod: sirve `dist/index.html` con `Cache-Control: no-cache` |
+
+**Headers de caché:**
+- `index.html` (portal y apps): `Cache-Control: no-cache, no-store, must-revalidate` — el browser siempre re-valida antes de usar.
+- `assets/*.js`, `assets/*.css`: `Cache-Control: public, max-age=31536000, immutable` — nombre con hash de contenido, válido 1 año.
 
 **Crítico:** Cada app debe tener `base: '/apps/{id}/'` en `vite.config.ts` para que los assets se sirvan correctamente. Si existe `vite.config.js` en el mismo directorio, Vite lo prioriza sobre `vite.config.ts` — **borrar cualquier `.js` legacy que no tenga `base` configurado**.
 
@@ -660,6 +691,11 @@ Tokens clave:
 | Launcher en `0.0.0.0` | Permite acceso desde red sin cambiar código — solo config en `.env`. |
 | Health checks en `localhost` dentro del launcher | El launcher verifica sus propios procesos locales; `APP_HOST` es solo para el browser externo. |
 | `AUTOSTART_APPS=false` por defecto | En desarrollo lanzar todo al inicio ralentiza el arranque. En servidor se activa explícitamente. |
+| Backend inline (Sound Catch) | El router FastAPI de Sound Catch se monta dentro del gateway (`app.include_router(router, prefix='/api/sound-catch/api')`). Elimina un subprocess y un puerto extra. Válido cuando el backend es Python/FastAPI y puede importarse como módulo. |
+| `??` vs `||` en env vars de cliente | `VITE_API_URL=` en `.env` produce `""` en el bundle. `"" ?? fallback` = `""` (bug). `"" \|\| fallback` = fallback (fix). Usar siempre `\|\|` para valores que pueden ser string vacío. |
+| `Cache-Control: no-cache` en index.html | Evita que el browser sirva el HTML obsoleto tras un rebuild. Los assets con hash son inmutables y se cachean 1 año. Elimina la necesidad de Ctrl+Shift+R después de actualizar. |
+| Limpieza de caché en startup | `launcher_ui.py` borra `__pycache__` y `node_modules/.vite/` antes de arrancar el gateway — garantiza código fresco sin mantenimiento manual. |
+| `/api/shutdown-portal` en gateway | Único endpoint que para subprocesos Y apaga el propio uvicorn. Necesario porque uvicorn no puede terminar el proceso padre desde un endpoint normal sin `os._exit()`. |
 
 ---
 
@@ -682,4 +718,7 @@ Tokens clave:
 | 2026-06-12 | **RDO orgs dinámicas + Consultar:** Reporte DevOps — `/api/organizaciones` consulta Azure DevOps en tiempo real (perfil PAT → cuentas). Fallback a `AZURE_DEVOPS_ORGS` en `.env`. Orgs se cargan automáticamente al activarse la app (`loadingOrgs=true` al montar). `/api/organizaciones/refresh` eliminado. Botón **[Consultar]** a la derecha del dropdown de Proyectos (reemplaza auto-load al seleccionar). `apiOrgsRefresh` eliminado de `client.ts`. RDO tests: **42/42** (−1). |
 | 2026-06-12 | **RDO sprint cards:** Nuevo endpoint `GET /api/sprints/<org>/<proyecto>` → `SprintsResult { current, anterior, futuros }`. Helpers: `ESTADOS_CERRADOS`, `_wiql_post` (charset UTF-8, sin `[System.TeamProject]`), `get_resumen_sprint`, `get_tc_ids_por_iteracion`, `get_testplan_progress` (paginación `x-ms-continuationtoken`). Frontend: componente `SprintCard` + 3 tarjetas (Sprint Actual verde, Sprint Anterior naranja, Sprints Futuros). Nuevas interfaces TS: `WorkItemsResumen`, `TestPlanProgress`, `SprintData`, `SprintsResult`. `apiSprints()` en client.ts. Historial siempre visible; logs expandibles. Total ecosistema: **343 tests** (111+42+57+96+37). |
 | 2026-06-16 | **Gateway + fix iframe:** `portal_server.py` (FastAPI/uvicorn) punto de entrada unificado en `:5174`. Apps servidas en `/apps/{id}/`. Fix bug crítico: `vite.config.js` en Bandas Salariales (sin `base`) overrideaba `vite.config.ts` con prioridad en resolución Vite — assets sin prefijo → gateway servía `index.html` del portal para los JS → `<script type="module">` rechazado por MIME → app no cargaba. Fix: eliminado `vite.config.js`, rebuild Bandas `dist/`. `AppFrame.tsx`: `isGatewayUrl = app.url.startsWith('/apps/')` para preflight same-origin sin `no-cors` y detección correcta de 503. `launcher_ui.py`: `_startup_sequence` reescrito para arrancar `portal_server.py` directamente y esperar `/api/health` (hasta 45s). 5 assertions RDO `client.test.ts` actualizadas a rutas `/api/reporte-devops/...`. **Total: 377/377 tests** (Portal 127 · Bandas 114 · RDO 42 · JM 57 · Survey 37). |
-| 2026-06-19 | **Fix bugs de usuario (6):** (1) Sound Catch `:5008` → mensaje dinámico `window.location.origin`, `.env` VITE_API_URL vacío, proxy vite.config.ts corregido, gateway prefix `/api/sound-catch/api`. (2) Survey "JSON inválido" → ASP.NET Core `UseResponseCompression` enviaba Brotli; httpx sin paquete `brotli` no decodificaba; gateway stripeaba `Content-Encoding` pero pasaba bytes comprimidos → parse fail. Fix: `portal_server.py` excluye `accept-encoding` de headers reenviados en `proxy_api`, `_proxy_vite` y `serve_portal`. (3) JM "JSON inválido" en upload → Node.js `compression()` middleware; mismo fix del gateway. (4) Bandas "no carga front" → `BrowserRouter` sin `basename` causaba navigate-to-`/` en contexto iframe; Fix: `basename="/apps/bandas-salariales"` en `App.tsx`, rebuild dist. (5) RDO "no carga front" → Flask sin compresión, issue de timing de backend startup (no hay compresión que afecte); sin cambio de código necesario. (6) Pantalla de carga baja calidad → `launcher_ui.py` sin DPI awareness en displays 4K; Fix: `windll.shcore.SetProcessDpiAwareness(2)` + fallback `SetProcessDPIAware()`. Nuevos tests: `JM/frontend/src/__tests__/client.test.ts` (24 tests) + `Survey/survey-frontend/src/__tests__/client.test.ts` (25 tests). **Total: 426/426 tests** (Portal 127 · Bandas 114 · RDO 42 · JM 81 · Survey 62). |
+| 2026-06-19 | **Sound Catch integrado:** App de transcripción de audio multi-formato con IA (Whisper). Backend FastAPI montado **inline** en el gateway (`include_router` en `/api/sound-catch/api/`). Frontend React 19 + Vite :5009. `VITE_API_URL=` (vacío) + `??` causaba fetch a `/api/info` (sin prefijo) → 404. Fix: `\|\|` en client.ts. Proxy vite.config.ts corregido. `client.test.ts` (11 tests). `sound-catch` en `APP_REGISTRY` con `url: '/apps/sound-catch/'`. `ALLOWED_APP_ORIGINS` actualizado con `:5009`. |
+| 2026-06-19 | **Fix bugs de usuario (6):** (1) Sound Catch — ver entrada anterior. (2) Survey "JSON inválido" → ASP.NET Core `UseResponseCompression` enviaba Brotli; `portal_server.py` excluye `accept-encoding` de headers reenviados — el gateway descomprime por su cuenta. (3) JM "JSON inválido" en upload → Node.js `compression()` middleware; mismo fix del gateway. (4) Bandas "no carga front" → `BrowserRouter` sin `basename`; Fix: `basename="/apps/bandas-salariales"`. (5) RDO — timing issue, sin cambio de código. (6) Pantalla de carga baja calidad en 4K → `windll.shcore.SetProcessDpiAwareness(2)` + fallback. Nuevos tests: `JM/client.test.ts` (24) + `Survey/client.test.ts` (25). **Total: 426/426 tests** (Portal 127 · Bandas 114 · RDO 42 · JM 81 · Survey 62). |
+| 2026-06-19 | **UX: cards y botón Salir.** (1) Cards del Dashboard ya no abren la app al hacer click — solo el botón **Abrir →** abre. Eliminada clase `.app-card.clickable` de CSS. (2) Botón **Salir** del portal cierra todo: llama `/api/shutdown-portal` (detiene todos los subprocesos + `os._exit(0)` en el gateway) y luego `window.close()`. Eliminada función `stopAll()` de `App.tsx` (era huérfana). +1 test en `components.test.tsx`. `dist/` reconstruido. **Total: 128/128 tests**. |
+| 2026-06-19 | **Cache HTTP + limpieza en startup.** `portal_server.py`: `index.html` se sirve con `Cache-Control: no-cache, no-store, must-revalidate` (portal y todas las apps) — el browser siempre re-valida sin necesitar Ctrl+Shift+R. Assets en `assets/` con hash de contenido: `Cache-Control: public, max-age=31536000, immutable`. `launcher_ui.py`: paso nuevo "Limpiando caché…" (#2 en secuencia) — borra `__pycache__/` en raíz + `portal-launcher/` y `node_modules/.vite/` antes de iniciar el gateway. `START_UNIFIED.bat` + `requirements_gateway.txt` committed. **Total: 128/128 tests** (Portal 128 · Bandas 114 · RDO 42 · JM 81 · Survey 62 = **427 total**). |

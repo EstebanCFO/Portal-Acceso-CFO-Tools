@@ -205,7 +205,7 @@ policy.WithOrigins(
 
 ```powershell
 cd "C:\Esteban CFOTech\Portal de Acceso\SURVEY\survey-frontend"
-npm run test:run    # 37 tests — 37/37
+npm run test:run    # 62 tests — 62/62
 npm run coverage    # con reporte de cobertura
 ```
 
@@ -213,6 +213,7 @@ npm run coverage    # con reporte de cobertura
 |---------|-------|-----------|
 | `header.test.tsx` | 20 | Header: badge, brand, appName, inPortal, onSalir |
 | `surveycard.test.tsx` | 17 | Render, fechas nulas, onClick, teclado, a11y |
+| `client.test.ts` | 25 | URLs correctas de todos los endpoints (`/api/survey/…`), exports, errores HTTP |
 
 ---
 
@@ -230,3 +231,5 @@ Clases propias usan el prefijo `.sv-*` para evitar colisiones.
 | Fecha | Cambio |
 |-------|--------|
 | 2026-06-12 | **FASE 6:** Survey Analytics construida desde cero. ASP.NET Core :5055 + React 19 + Vite :5176. SurveyMonkey API v3 (Bearer token). Dashboard con KPIs + buscador + SurveyCards. SurveyDetail con BarChart recharts por pregunta. Vitest 4.x: 37/37 tests. Integrado en portal (registry + launcher + ALLOWED_APP_ORIGINS). |
+| 2026-06-19 | **Selector AÑO + ENCUESTA + Consultar.** Dashboard rediseñado: dropdown AÑO (valores en `config.ts` — editable sin tocar backend) + dropdown ENCUESTA + botón **[Consultar]**. Collector cards con KPIs de respuestas por collector. Nuevos tipos en `types.ts`: `SurveyForYearResponse`, `SurveyReportResponse`. Nuevos endpoints en `client.ts`: `apiSurveysForYear(year)`, `apiSurveyReport(id)`, `apiYears()`. Refactor: años vienen de `config.ts` local (sin dependencia del backend). Fix: muestra error descriptivo cuando backend no disponible. |
+| 2026-06-19 | **Fix compresión + client tests.** Bug: ASP.NET Core `UseResponseCompression` enviaba Brotli; `httpx` sin paquete `brotli` no decodificaba; gateway stripeaba `Content-Encoding` pero pasaba bytes comprimidos → JSON parse fallaba. Fix en `portal_server.py`: excluir `accept-encoding` de headers reenviados. Nuevo `src/__tests__/client.test.ts` (25 tests): URLs correctas con prefijo `/api/survey/`, exports, errores HTTP. **Total: 62/62 tests** (header 20 + surveycard 17 + client 25). |
