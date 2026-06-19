@@ -35,13 +35,6 @@ async function stopApp(appId: string): Promise<void> {
   }
 }
 
-/** Pide al launcher que baje TODOS los servidores corriendo. */
-async function stopAll(): Promise<void> {
-  try {
-    await fetch(`${LAUNCHER}/api/stop-all`, { method: 'POST' })
-  } catch {}
-}
-
 export default function App() {
   const [activeApp, setActiveApp] = useState<App | null>(null)
 
