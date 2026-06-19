@@ -8,7 +8,7 @@
 import type {
   Org, Proyecto, ProyectoInfo, ProyectoDetalle,
   TestPlan, PdfFile, LogFile, GeneracionEstado,
-  SprintsResult,
+  SprintsResult, ProjectForYear, SprintReportResult,
 } from '../types'
 
 const BASE = '/api/reporte-devops'
@@ -65,3 +65,20 @@ export const urlDescarga = (nombre: string) => `${BASE}/descargar/${encodeURICom
 
 // ── Salir ────────────────────────────────────────────────
 export const apiSalir = () => post<{ ok: boolean }>('/salir')
+
+// ── Filtros por año (nuevos endpoints) ───────────────────
+/** Orgs que tienen ≥ 1 proyecto con primer sprint en el año dado */
+export const apiOrgsForYear = (year: number) =>
+  get<Org[]>(`/orgs-for-year/${year}`)
+
+/** Proyectos de una org cuyo primer sprint tiene startDate en el año dado */
+export const apiProjectsForYear = (org: string, year: number) =>
+  get<ProjectForYear[]>(
+    `/projects-for-year/${encodeURIComponent(org)}/${year}`,
+  )
+
+/** Sprint actual + anterior con work items detallados */
+export const apiSprintReport = (org: string, project: string) =>
+  get<SprintReportResult>(
+    `/sprint-report?org=${encodeURIComponent(org)}&project=${encodeURIComponent(project)}`,
+  )

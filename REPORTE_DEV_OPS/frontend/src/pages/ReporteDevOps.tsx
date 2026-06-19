@@ -1,83 +1,250 @@
 import { useState, useEffect } from 'react'
-import type { Org, Proyecto, SprintsResult, SprintData } from '../types'
-import { apiOrgs, apiProyectos, apiSprints, apiSalir } from '../api/client'
+import type { Org, ProjectForYear, SprintReportResult, WorkItem } from '../types'
+import { apiOrgsForYear, apiProjectsForYear, apiSprintReport, apiSalir } from '../api/client'
 
 // Detecta si la app corre embebida en el portal — evaluación estática
 const IN_PORTAL = window.self !== window.top
 
-// Estados cerrados — para colorear el dot de cada estado en la tarjeta
-const ESTADOS_CERRADOS = new Set([
+const CLOSED_STATES = new Set([
   'Closed', 'Done', 'Resolved', 'Completed',
   'Fixed', 'Removed', 'Resuelta', 'Finalizado',
 ])
 
-// ── Componente: tarjeta de un sprint (current o anterior) ────────────────────
-function SprintCard({ sprint, tipo }: { sprint: SprintData; tipo: 'current' | 'anterior' }) {
-  const esCurrent  = tipo === 'current'
-  const badge      = esCurrent
-    ? <span className="badge badge-green">SPRINT ACTUAL</span>
-    : <span className="badge badge-orange">SPRINT ANTERIOR</span>
+const AVATAR_PALETTE = [
+  '#185fa5', '#993c1d', '#3b6d11', '#854f0b',
+  '#0a1f44', '#7c3aed', '#0e7490', '#be185d',
+]
 
-  const tp = sprint.testplan
+// ── Helpers ───────────────────────────────────────────────────
+
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const parts = iso.split('T')[0].split('-')
+  return `${parts[2]}/${parts[1]}/${parts[0]}`
+}
+
+function countBizDays(start: Date, end: Date): number {
+  let count = 0
+  const cur = new Date(start); cur.setHours(0, 0, 0, 0)
+  const e   = new Date(end);   e.setHours(0, 0, 0, 0)
+  while (cur <= e) {
+    const d = cur.getDay()
+    if (d !== 0 && d !== 6) count++
+    cur.setDate(cur.getDate() + 1)
+  }
+  return count
+}
+
+interface RiskResult {
+  level:     'BAJO' | 'MEDIO' | 'ALTO' | 'N/A'
+  subText:   string
+  velocity:  number
+  elapsed:   number
+  remaining: number
+}
+
+function calcRisk(
+  startDate:  string | null,
+  finishDate: string | null,
+  open:       number,
+  closed:     number,
+): RiskResult {
+  if (!startDate || !finishDate) {
+    return { level: 'N/A', subText: 'Sin fechas de sprint', velocity: 0, elapsed: 0, remaining: 0 }
+  }
+  const today  = new Date(); today.setHours(0, 0, 0, 0)
+  const start  = new Date(startDate)
+  const finish = new Date(finishDate)
+
+  if (today < start) {
+    return { level: 'N/A', subText: 'Sprint no iniciado', velocity: 0, elapsed: 0, remaining: 0 }
+  }
+
+  const effectEnd = today > finish ? finish : today
+  const elapsed   = countBizDays(start, effectEnd)
+
+  const tomorrow  = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1)
+  const remaining = today >= finish ? 0 : countBizDays(tomorrow, finish)
+
+  const velocity = elapsed > 0 ? closed / elapsed : 0
+
+  if (open === 0) {
+    return { level: 'BAJO', subText: 'Sin items abiertos ✓', velocity, elapsed, remaining }
+  }
+  if (remaining === 0) {
+    return { level: 'ALTO', subText: 'Sprint finalizado con items abiertos', velocity, elapsed, remaining }
+  }
+
+  const needed = open / remaining
+  const level: RiskResult['level'] =
+    velocity >= needed       ? 'BAJO'  :
+    velocity >= needed * 0.5 ? 'MEDIO' : 'ALTO'
+  const subText = `Vel. necesaria: ${needed.toFixed(1)}/día · ${remaining} días restantes`
+  return { level, subText, velocity, elapsed, remaining }
+}
+
+function getInitials(name: string): string {
+  if (!name) return '?'
+  const parts = name.trim().split(/\s+/)
+  return parts.length === 1
+    ? parts[0][0].toUpperCase()
+    : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+function avatarColor(name: string): string {
+  const code = [...name].reduce((s, c) => s + c.charCodeAt(0), 0)
+  return AVATAR_PALETTE[code % AVATAR_PALETTE.length]
+}
+
+// ── Carpeta colapsable de work items ──────────────────────────
+function FolderSection({ type, items }: { type: 'Task' | 'Bug'; items: WorkItem[] }) {
+  const [open, setOpen] = useState(true)
+  const pillCls = type === 'Task' ? 'rdo-pill-task' : 'rdo-pill-bug'
 
   return (
-    <div className="card">
-      {/* Cabecera */}
-      <div className="sprint-card-header">
-        <div className="sprint-card-header-left">
-          {badge}
-          <span className="sprint-nombre">{sprint.nombre}</span>
-        </div>
-        <span className="sprint-fechas">{sprint.inicio} → {sprint.fin}</span>
-      </div>
+    <div className="rdo-folder">
+      <button
+        className="rdo-folder-hdr"
+        onClick={() => setOpen(p => !p)}
+        type="button"
+        aria-expanded={open}
+      >
+        <span className={`rdo-chevron${open ? ' open' : ''}`}>▶</span>
+        <span className={`rdo-type-pill ${pillCls}`}>{type}</span>
+        <span className="rdo-folder-count">({items.length})</span>
+      </button>
 
-      {/* Work Items */}
-      <div className="sprint-section">
-        <div className="sprint-section-title">Work Items</div>
-        <div className="sprint-wi-grid">
-          <div className="sprint-wi-card">
-            <div className="sprint-wi-label">Total</div>
-            <div className="sprint-wi-value">{sprint.workitems.total}</div>
-          </div>
-          <div className="sprint-wi-card">
-            <div className="sprint-wi-label">Abiertas</div>
-            <div className="sprint-wi-value open">{sprint.workitems.abiertas}</div>
-          </div>
-          <div className="sprint-wi-card">
-            <div className="sprint-wi-label">Cerradas</div>
-            <div className="sprint-wi-value closed">{sprint.workitems.cerradas}</div>
-          </div>
-        </div>
-
-        {/* Detalle por estado */}
-        {Object.keys(sprint.workitems.estados).length > 0 && (
-          <div className="estados-list">
-            {Object.entries(sprint.workitems.estados)
-              .sort((a, b) => b[1] - a[1])
-              .map(([estado, qty]) => {
-                const pct     = sprint.workitems.total > 0
-                  ? Math.round(qty / sprint.workitems.total * 100) : 0
-                const cerrado = ESTADOS_CERRADOS.has(estado)
+      {open && (
+        <div className="rdo-folder-body">
+          <table className="rdo-wi-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Título</th>
+                <th>Estado</th>
+                <th>Asignado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map(item => {
+                const isClosed = CLOSED_STATES.has(item.state)
+                const who      = item.assignedTo || ''
                 return (
-                  <div key={estado} className="estado-row">
-                    <div className={`estado-dot ${cerrado ? 'closed' : 'open'}`} />
-                    <span className="estado-nombre">{estado}</span>
-                    <span className="estado-qty">{qty}</span>
-                    <div className="estado-bar">
-                      <div className="estado-bar-fill" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
+                  <tr key={item.id} className={`rdo-wi-row${isClosed ? ' closed' : ''}`}>
+                    <td className="rdo-wi-id">#{item.id}</td>
+                    <td className="rdo-wi-title">{item.title}</td>
+                    <td>
+                      <span className="rdo-wi-state">
+                        <span className={`rdo-state-dot${isClosed ? ' closed' : ' open-dot'}`} />
+                        {item.state}
+                      </span>
+                    </td>
+                    <td>
+                      {who
+                        ? (
+                          <span
+                            className="rdo-avatar"
+                            title={who}
+                            style={{ background: avatarColor(who) }}
+                          >
+                            {getInitials(who)}
+                          </span>
+                        )
+                        : <span style={{ color: 'var(--text3)', fontSize: 12 }}>—</span>
+                      }
+                    </td>
+                  </tr>
                 )
               })}
-          </div>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Sprint Actual ──────────────────────────────────────────────
+function SprintCurrentSection({
+  sprint,
+  firstSprintDate,
+}: {
+  sprint:          NonNullable<SprintReportResult['current']>
+  firstSprintDate: string | null
+}) {
+  const { name, startDate, finishDate, items, testplan } = sprint
+  const tasks   = items.filter(i => i.type === 'Task')
+  const bugs    = items.filter(i => i.type === 'Bug')
+  const closed  = items.filter(i => CLOSED_STATES.has(i.state)).length
+  const open    = items.length - closed
+  const total   = items.length
+  const avance  = total > 0 ? Math.round(closed / total * 100) : 0
+  const risk    = calcRisk(startDate, finishDate, open, closed)
+
+  const avanceColor  = avance >= 70 ? 'var(--green)' : avance >= 40 ? 'var(--orange)' : 'var(--red)'
+  const riskCls      = { BAJO: 'risk-bajo', MEDIO: 'risk-medio', ALTO: 'risk-alto', 'N/A': 'risk-na' }[risk.level]
+
+  const tp    = testplan
+  const cPct  = tp.pctCorridos ?? 0
+  const pPct  = tp.pctPass     ?? 0
+  const cFill = cPct >= 80 ? 'var(--green)' : cPct >= 50 ? 'var(--orange)' : 'var(--red)'
+  const pFill = pPct >= 80 ? 'var(--green)' : pPct >= 50 ? 'var(--orange)' : 'var(--red)'
+
+  return (
+    <div className="card rdo-sprint-card">
+
+      {/* ── Cabecera ── */}
+      <div className="rdo-sprint-hdr">
+        <span className="badge badge-green">SPRINT ACTUAL</span>
+        <span className="rdo-sprint-name">{name}</span>
+        <span className="sprint-fechas">{fmtDate(startDate)} → {fmtDate(finishDate)}</span>
+        {firstSprintDate && (
+          <span className="rdo-first-sprint">Primer sprint: {fmtDate(firstSprintDate)}</span>
         )}
       </div>
 
-      {/* Test Plan */}
-      <div className="sprint-section">
+      {/* ── 4 tarjetas de métricas ── */}
+      <div className="rdo-metrics-row">
+        <div className="rdo-metric-card">
+          <div className="rdo-metric-label">Total tasks</div>
+          <div className="rdo-metric-value">{total}</div>
+          <div className="rdo-metric-sub">{open} abiertas · {closed} cerradas</div>
+        </div>
+        <div className="rdo-metric-card">
+          <div className="rdo-metric-label">% Avance</div>
+          <div className="rdo-metric-value" style={{ color: avanceColor }}>{avance}%</div>
+          <div className="rdo-metric-sub">{closed} de {total} cerradas</div>
+        </div>
+        <div className="rdo-metric-card">
+          <div className="rdo-metric-label">Velocidad actual</div>
+          <div className="rdo-metric-value">
+            {risk.elapsed > 0 ? risk.velocity.toFixed(1) : '—'}
+          </div>
+          <div className="rdo-metric-sub">tasks/día · {risk.elapsed} días hábiles</div>
+        </div>
+        <div className={`rdo-metric-card rdo-risk-card ${riskCls ?? ''}`}>
+          <div className="rdo-metric-label">Riesgo</div>
+          <div className="rdo-metric-value">{risk.level}</div>
+          <div className="rdo-metric-sub">{risk.subText}</div>
+        </div>
+      </div>
+
+      {/* ── Barra de progreso ── */}
+      <div className="rdo-progress-section">
+        <div className="rdo-progress-meta">
+          <span>{closed} cerradas de {total}</span>
+          <span style={{ fontWeight: 600, color: avanceColor }}>{avance}%</span>
+        </div>
+        <div className="rdo-progress-track">
+          <div className="rdo-progress-fill" style={{ width: `${avance}%`, background: avanceColor }} />
+        </div>
+      </div>
+
+      {/* ── Test Plan ── */}
+      <div className="rdo-inner-section">
         <div className="sprint-section-title">Test Plan</div>
         {!tp.encontrado
-          ? <span className="text-muted" style={{ fontSize: 13 }}>Sin planes de prueba activos</span>
+          ? <span className="text-muted" style={{ fontSize: 13 }}>Sin test plan activo asociado al sprint.</span>
           : (
             <>
               <div className="tp-plan-name">
@@ -89,103 +256,178 @@ function SprintCard({ sprint, tipo }: { sprint: SprintData; tipo: 'current' | 'a
                 )}
               </div>
               <div className="tp-rows">
-                {/* Test Cases definidos */}
                 <div className="tp-row">
                   <span className="tp-label">Test Cases definidos</span>
                   <span className="tp-value">{tp.total}</span>
                 </div>
-                {/* Test Points corridos */}
                 <div className="tp-row">
                   <span className="tp-label">Test Points corridos</span>
                   <span className="tp-value">{tp.corridos} / {tp.total}</span>
                   <div className="progress-wrap" style={{ flex: 1 }}>
                     <div className="progress-bar">
-                      <div className="progress-fill" style={{ width: `${tp.pctCorridos}%` }} />
+                      <div className="progress-fill" style={{ width: `${cPct}%`, background: cFill }} />
                     </div>
-                    <span className="progress-label">{tp.pctCorridos}%</span>
+                    <span className="progress-label">{cPct}%</span>
                   </div>
                 </div>
-                {/* Pass Rate */}
                 <div className="tp-row">
                   <span className="tp-label">Pass Rate</span>
                   <span className="tp-value">{tp.pasados} / {tp.corridos}</span>
                   <div className="progress-wrap" style={{ flex: 1 }}>
                     <div className="progress-bar">
-                      <div className="progress-fill" style={{
-                        width: `${tp.pctPass}%`,
-                        background: tp.pctPass >= 80
-                          ? 'var(--green)' : tp.pctPass >= 50
-                          ? 'var(--orange)' : 'var(--red)',
-                      }} />
+                      <div className="progress-fill" style={{ width: `${pPct}%`, background: pFill }} />
                     </div>
-                    <span className="progress-label">{tp.pctPass}%</span>
+                    <span className="progress-label">{pPct}%</span>
                   </div>
                 </div>
               </div>
             </>
-          )}
+          )
+        }
+      </div>
+
+      {/* ── Work Items por tipo (carpetas colapsables) ── */}
+      <div className="rdo-inner-section">
+        <div className="sprint-section-title">Work Items del sprint</div>
+        {tasks.length === 0 && bugs.length === 0
+          ? <span className="text-muted" style={{ fontSize: 13 }}>Sin Tasks ni Bugs en este sprint.</span>
+          : (
+            <>
+              {tasks.length > 0 && <FolderSection type="Task" items={tasks} />}
+              {bugs.length  > 0 && <FolderSection type="Bug"  items={bugs}  />}
+            </>
+          )
+        }
       </div>
     </div>
   )
 }
 
-// ── Componente principal ─────────────────────────────────────────────────────
+// ── Sprint Anterior ────────────────────────────────────────────
+function SprintAnteriorSection({
+  sprint,
+}: {
+  sprint: NonNullable<SprintReportResult['anterior']>
+}) {
+  const { name, startDate, finishDate, items } = sprint
+  const tasks  = items.filter(i => i.type === 'Task')
+  const bugs   = items.filter(i => i.type === 'Bug')
+  const closed = items.filter(i => CLOSED_STATES.has(i.state)).length
+  const open   = items.length - closed
+  const total  = items.length
+
+  return (
+    <div className="card rdo-sprint-card">
+
+      {/* ── Cabecera ── */}
+      <div className="rdo-sprint-hdr">
+        <span className="badge badge-orange">SPRINT ANTERIOR</span>
+        <span className="rdo-sprint-name">{name}</span>
+        <span className="sprint-fechas">{fmtDate(startDate)} → {fmtDate(finishDate)}</span>
+      </div>
+
+      {/* ── Totales ── */}
+      <div className="rdo-stats-row">
+        <div className="rdo-stat">
+          <div className="rdo-stat-label">Total</div>
+          <div className="rdo-stat-value">{total}</div>
+        </div>
+        <div className="rdo-stat">
+          <div className="rdo-stat-label">Abiertas</div>
+          <div className={`rdo-stat-value${open > 0 ? ' val-open' : ''}`}>{open}</div>
+        </div>
+        <div className="rdo-stat">
+          <div className="rdo-stat-label">Cerradas</div>
+          <div className="rdo-stat-value val-closed">{closed}</div>
+        </div>
+      </div>
+
+      {/* ── Work Items por tipo ── */}
+      <div className="rdo-inner-section">
+        <div className="sprint-section-title">Work Items del sprint</div>
+        {tasks.length === 0 && bugs.length === 0
+          ? <span className="text-muted" style={{ fontSize: 13 }}>Sin Tasks ni Bugs en este sprint.</span>
+          : (
+            <>
+              {tasks.length > 0 && <FolderSection type="Task" items={tasks} />}
+              {bugs.length  > 0 && <FolderSection type="Bug"  items={bugs}  />}
+            </>
+          )
+        }
+      </div>
+    </div>
+  )
+}
+
+// ── Componente principal ───────────────────────────────────────
 export default function ReporteDevOps() {
-  // Filtros
-  const [orgs,      setOrgs]      = useState<Org[]>([])
-  const [orgSel,    setOrgSel]    = useState('')
-  const [proyectos, setProyectos] = useState<Proyecto[]>([])
-  const [proySel,   setProySel]   = useState('')
+  // Filtros en cascada
+  const [yearSel,    setYearSel]    = useState('')
+  const [orgSel,     setOrgSel]     = useState('')
+  const [projectSel, setProjectSel] = useState('')
 
-  // Datos de sprints
-  const [sprintData,        setSprintData]        = useState<SprintsResult | null>(null)
-  const [loadingSprintData, setLoadingSprintData] = useState(false)
-  const [sprintError,       setSprintError]       = useState('')
+  // Datos de selects
+  const [orgsForYear,      setOrgsForYear]      = useState<Org[]>([])
+  const [projectsForYear,  setProjectsForYear]  = useState<ProjectForYear[]>([])
 
-  // Loaders
-  const [loadingOrgs,  setLoadingOrgs]  = useState(true)   // true: carga inmediata al montar
-  const [loadingProys, setLoadingProys] = useState(false)
+  // Reporte
+  const [reportData,    setReportData]    = useState<SprintReportResult | null>(null)
+  const [loadingReport, setLoadingReport] = useState(false)
+  const [reportError,   setReportError]   = useState('')
 
-  // ── Carga inicial — orgs desde Azure DevOps ──────────────
+  // Loaders de selects
+  const [loadingOrgs,    setLoadingOrgs]    = useState(false)
+  const [loadingProjects, setLoadingProjects] = useState(false)
+
+  // Años disponibles (año actual → -4)
+  const thisYear = new Date().getFullYear()
+  const years    = Array.from({ length: 5 }, (_, i) => thisYear - i)
+
+  // ── Cascada: año → orgs ──────────────────────────────────
   useEffect(() => {
-    void (async () => {
-      try {
-        const o = await apiOrgs()   // consulta Azure: perfil → cuentas
-        setOrgs(o)
-      } catch (err) {
-        console.error('Error cargando orgs desde Azure:', err)
-      } finally {
-        setLoadingOrgs(false)
-      }
-    })()
-  }, [])
+    setOrgSel('');     setOrgsForYear([])
+    setProjectSel(''); setProjectsForYear([])
+    setReportData(null); setReportError('')
 
-  // ── Cambio org ───────────────────────────────────────────
+    if (!yearSel) return
+    setLoadingOrgs(true)
+    void apiOrgsForYear(Number(yearSel))
+      .then(setOrgsForYear)
+      .catch(console.error)
+      .finally(() => setLoadingOrgs(false))
+  }, [yearSel])
+
+  // ── Cascada: org → proyectos ──────────────────────────────
   useEffect(() => {
-    if (!orgSel) { setProyectos([]); setProySel(''); return }
-    setLoadingProys(true)
-    setProySel('')
-    void apiProyectos(orgSel).then(p => { setProyectos(p); setLoadingProys(false) })
-  }, [orgSel])
+    setProjectSel(''); setProjectsForYear([])
+    setReportData(null); setReportError('')
 
-  // ── Cambio org o proyecto — limpia resultados anteriores ─
+    if (!orgSel || !yearSel) return
+    setLoadingProjects(true)
+    void apiProjectsForYear(orgSel, Number(yearSel))
+      .then(setProjectsForYear)
+      .catch(console.error)
+      .finally(() => setLoadingProjects(false))
+  }, [orgSel, yearSel])
+
+  // ── Limpiar reporte al cambiar proyecto ───────────────────
   useEffect(() => {
-    setSprintData(null); setSprintError('')
-  }, [orgSel, proySel])
+    setReportData(null); setReportError('')
+  }, [projectSel])
 
-  // ── Consultar ─────────────────────────────────────────────
-  const handleConsultar = async () => {
-    if (!orgSel || !proySel) return
-    setLoadingSprintData(true)
-    setSprintData(null)
-    setSprintError('')
+  // ── Ver reporte ───────────────────────────────────────────
+  const handleVerReporte = async () => {
+    if (!orgSel || !projectSel) return
+    setLoadingReport(true)
+    setReportData(null)
+    setReportError('')
     try {
-      const data = await apiSprints(orgSel, proySel)
-      setSprintData(data)
+      const data = await apiSprintReport(orgSel, projectSel)
+      setReportData(data)
     } catch (err) {
-      setSprintError(err instanceof Error ? err.message : 'Error al consultar sprints')
+      setReportError(err instanceof Error ? err.message : 'Error al consultar el reporte')
     } finally {
-      setLoadingSprintData(false)
+      setLoadingReport(false)
     }
   }
 
@@ -195,49 +437,69 @@ export default function ReporteDevOps() {
   const handleSalir = async () => {
     if (saliendo) return
     setSaliendo(true)
-    try {
-      await apiSalir()
-    } catch {
-      // Flask puede no responder si ya está cerrándose
-    }
-    const portalUrl = import.meta.env.VITE_PORTAL_URL ?? 'http://localhost:5174'
-    window.parent.postMessage(
-      { type: 'portal:goHome', appId: 'reporte-devops' },
-      portalUrl,
-    )
+    try { await apiSalir() } catch { /* Flask puede estar cerrándose */ }
+    const portalUrl = import.meta.env.VITE_PORTAL_URL || 'http://localhost:5174'
+    window.parent.postMessage({ type: 'portal:goHome', appId: 'reporte-devops' }, portalUrl)
   }
 
-  // ────────────────────────────────────────────────────────
-  // Render
+  const canVer = !!yearSel && !!orgSel && !!projectSel && !loadingReport
+
   // ────────────────────────────────────────────────────────
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
 
-      {/* ── Toolbar ──────────────────────────────────────── */}
+      {/* ── Toolbar ─────────────────────────────────────── */}
       <div className="toolbar">
-        <label>Organización</label>
-        <select value={orgSel} onChange={e => setOrgSel(e.target.value)} disabled={loadingOrgs}>
-          <option value="">{loadingOrgs ? 'Cargando...' : '— seleccionar —'}</option>
-          {orgs.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}
+
+        <label>Año</label>
+        <select value={yearSel} onChange={e => setYearSel(e.target.value)}>
+          <option value="">Seleccionar año…</option>
+          {years.map(y => <option key={y} value={y}>{y}</option>)}
         </select>
 
-        <label>Proyectos</label>
-        <select value={proySel} onChange={e => setProySel(e.target.value)} disabled={!orgSel || loadingProys}>
-          <option value="">{loadingProys ? 'Cargando...' : '— seleccionar —'}</option>
-          {proyectos.map(p => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}
+        <label>Organización</label>
+        <select
+          value={orgSel}
+          onChange={e => setOrgSel(e.target.value)}
+          disabled={!yearSel || loadingOrgs}
+        >
+          <option value="">
+            {!yearSel
+              ? '— elegir año primero —'
+              : loadingOrgs
+                ? 'Cargando…'
+                : '— seleccionar —'}
+          </option>
+          {orgsForYear.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}
+        </select>
+
+        <label>Proyecto</label>
+        <select
+          value={projectSel}
+          onChange={e => setProjectSel(e.target.value)}
+          disabled={!orgSel || loadingProjects}
+        >
+          <option value="">
+            {!orgSel
+              ? '— elegir org primero —'
+              : loadingProjects
+                ? 'Cargando…'
+                : '— seleccionar —'}
+          </option>
+          {projectsForYear.map(p => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}
         </select>
 
         <button
           className="btn btn-navy btn-sm"
-          onClick={handleConsultar}
-          disabled={!orgSel || !proySel || loadingSprintData}
+          onClick={handleVerReporte}
+          disabled={!canVer}
         >
-          {loadingSprintData
-            ? <><span className="spinner" style={{ width: 10, height: 10, borderWidth: 2 }} /> Consultando...</>
-            : 'Consultar'}
+          {loadingReport
+            ? <><span className="spinner" style={{ width: 10, height: 10, borderWidth: 2 }} /> Consultando…</>
+            : 'Ver reporte'
+          }
         </button>
 
-        {/* En modo portal el "← Volver" del portal shell cumple la función de salir */}
         {!IN_PORTAL && (
           <div style={{ marginLeft: 'auto' }}>
             <button className="btn btn-danger btn-sm" onClick={handleSalir} disabled={saliendo}>
@@ -247,109 +509,89 @@ export default function ReporteDevOps() {
         )}
       </div>
 
-      {/* ── Contenido principal ─────────────────────────────── */}
+      {/* ── Contenido ───────────────────────────────────── */}
       <div className="page-content">
 
-        {/* ── Welcome (sin org seleccionada) ──────────────────── */}
-        {!orgSel && (
-          <div className="section">
-            <div className="card" style={{ textAlign: 'center', padding: 40 }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>📊</div>
-              <div className="section-title" style={{ fontSize: 18, marginBottom: 8 }}>
-                Reporte Azure DevOps — Delivery Center
-              </div>
-              <p className="text-muted">
-                Seleccioná una organización y un proyecto, luego presioná <strong>Consultar</strong>.
-              </p>
-              <div style={{ marginTop: 20 }}>
-                <div className="kpi-value" style={{ fontSize: 32 }}>{orgs.length}</div>
-                <div className="kpi-label">Organizaciones disponibles</div>
-              </div>
-            </div>
+        {/* Welcome / hint */}
+        {!reportData && !loadingReport && !reportError && (
+          <div className="empty-state">
+            <div style={{ fontSize: 36 }}>📊</div>
+            <strong>Reporte Azure DevOps — Delivery Center</strong>
+            <span className="text-muted">
+              {!yearSel
+                ? 'Seleccioná un año, organización y proyecto para ver el reporte.'
+                : !orgSel
+                  ? 'Seleccioná una organización y proyecto.'
+                  : !projectSel
+                    ? 'Seleccioná un proyecto y hacé clic en Ver reporte.'
+                    : 'Hacé clic en Ver reporte para consultar los sprints.'
+              }
+            </span>
           </div>
         )}
 
-        {/* ── Hint (org seleccionada, sin proyecto o sin consultar) ─ */}
-        {orgSel && !sprintData && !loadingSprintData && !sprintError && (
+        {/* Cargando */}
+        {loadingReport && (
           <div className="empty-state">
-            <strong>{proySel ? 'Presioná Consultar para ver los sprints' : 'Seleccioná un proyecto'}</strong>
-          </div>
-        )}
-
-        {/* ── Cargando ─────────────────────────────────────────── */}
-        {loadingSprintData && (
-          <div className="empty-state">
-            <span className="spinner" style={{ width: 28, height: 28, borderWidth: 3 }} />
-            <strong>Consultando sprints en Azure DevOps...</strong>
+            <span className="spinner" style={{
+              width: 28, height: 28, borderWidth: 3,
+              borderColor: 'var(--gray2)', borderTopColor: 'var(--navy)',
+            }} />
+            <strong>Consultando sprints en Azure DevOps…</strong>
             <span className="text-muted" style={{ fontSize: 12 }}>
               Esto puede tardar unos segundos mientras se obtienen work items y test plans.
             </span>
           </div>
         )}
 
-        {/* ── Error ────────────────────────────────────────────── */}
-        {sprintError && (
+        {/* Error */}
+        {reportError && !loadingReport && (
           <div className="section">
             <div className="card" style={{ borderLeft: '4px solid var(--red)', padding: '16px 20px' }}>
               <div style={{ fontWeight: 600, color: 'var(--red)', marginBottom: 4 }}>Error al consultar</div>
-              <div className="text-muted" style={{ fontSize: 13 }}>{sprintError}</div>
+              <div className="text-muted" style={{ fontSize: 13 }}>{reportError}</div>
             </div>
           </div>
         )}
 
-        {/* ── 3 Tarjetas de sprint ──────────────────────────────── */}
-        {sprintData && !loadingSprintData && (
+        {/* Reporte */}
+        {reportData && !loadingReport && (
           <div className="sprints-grid">
 
-            {/* Tarjeta 1 — Sprint actual */}
-            {sprintData.current
-              ? <SprintCard sprint={sprintData.current} tipo="current" />
+            {/* Sprint Actual */}
+            {reportData.current
+              ? (
+                <SprintCurrentSection
+                  sprint={reportData.current}
+                  firstSprintDate={reportData.firstSprintDate}
+                />
+              )
               : (
                 <div className="card">
                   <div className="sprint-card-header">
                     <span className="badge badge-gray">SPRINT ACTUAL</span>
                   </div>
-                  <div className="text-muted" style={{ fontSize: 13 }}>
+                  <p className="text-muted" style={{ fontSize: 13 }}>
                     No hay sprint activo en este proyecto.
-                  </div>
+                  </p>
                 </div>
-              )}
+              )
+            }
 
-            {/* Tarjeta 2 — Sprint anterior */}
-            {sprintData.anterior
-              ? <SprintCard sprint={sprintData.anterior} tipo="anterior" />
+            {/* Sprint Anterior */}
+            {reportData.anterior
+              ? <SprintAnteriorSection sprint={reportData.anterior} />
               : (
                 <div className="card">
                   <div className="sprint-card-header">
                     <span className="badge badge-orange">SPRINT ANTERIOR</span>
                   </div>
-                  <div className="text-muted" style={{ fontSize: 13 }}>
+                  <p className="text-muted" style={{ fontSize: 13 }}>
                     Sin sprint anterior registrado.
-                  </div>
+                  </p>
                 </div>
-              )}
-
-            {/* Tarjeta 3 — Sprints futuros */}
-            <div className="card">
-              <div className="sprint-card-header">
-                <span className="badge badge-gray">SPRINTS FUTUROS</span>
-                <span className="sprint-fechas">
-                  {sprintData.futuros.length} sprint{sprintData.futuros.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-              {sprintData.futuros.length === 0
-                ? <div className="text-muted" style={{ fontSize: 13 }}>Sin sprints futuros planificados.</div>
-                : (
-                  <div className="futuros-list">
-                    {sprintData.futuros.map((s, i) => (
-                      <div key={i} className="futuro-item">
-                        <span className="futuro-nombre">{s.nombre}</span>
-                        <span className="futuro-fechas">{s.inicio} → {s.fin}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-            </div>
+              )
+            }
 
           </div>
         )}

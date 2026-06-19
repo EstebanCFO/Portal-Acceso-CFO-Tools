@@ -12,6 +12,7 @@ import datetime
 import threading
 import subprocess
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from base64 import b64encode
 from urllib.parse import quote as urlquote
 from flask import Flask, jsonify, send_file, request
@@ -697,6 +698,217 @@ def salir():
         os._exit(0)
     threading.Thread(target=shutdown, daemon=True).start()
     return jsonify({'ok': True, 'mensaje': 'Servidor detenido'})
+
+
+# ── Helpers para rediseño: filtrado por año ─────────────────────
+
+def _project_first_sprint_in_year(org: str, project: str, year: int) -> bool:
+    """True si el primer sprint del proyecto (cronológico) tiene startDate en `year`."""
+    try:
+        ref  = urlquote(project, safe='')
+        data = az_get(
+            f'https://dev.azure.com/{org}/{ref}'
+            f'/_apis/work/teamsettings/iterations?api-version=7.1'
+        )
+        if not data:
+            return False
+        iters = [i for i in data.get('value', [])
+                 if i.get('attributes', {}).get('startDate')]
+        if not iters:
+            return False
+        iters.sort(key=lambda x: x['attributes']['startDate'])
+        return iters[0]['attributes']['startDate'][:4] == str(year)
+    except Exception:
+        return False
+
+
+def get_sprint_items(org: str, project_ref: str, iter_path: str) -> list:
+    """Tasks y Bugs de una iteración con campos completos
+    (id, title, state, type, assignedTo). Batch de 200 IDs."""
+    query = (
+        f"SELECT [System.Id] FROM WorkItems "
+        f"WHERE [System.IterationPath] UNDER '{iter_path}' "
+        f"AND [System.WorkItemType] IN ('Task', 'Bug')"
+    )
+    wiql = _wiql_post(org, project_ref, query)
+    if not wiql:
+        return []
+    ids = [i['id'] for i in wiql.get('workItems', [])]
+    if not ids:
+        return []
+
+    ref    = urlquote(project_ref, safe='')
+    fields = 'System.Id,System.Title,System.State,System.WorkItemType,System.AssignedTo'
+    items: list = []
+    for i in range(0, len(ids), 200):
+        chunk = ','.join(map(str, ids[i:i + 200]))
+        batch = az_get(
+            f'https://dev.azure.com/{org}/{ref}/_apis/wit/workitems'
+            f'?ids={chunk}&fields={fields}&api-version=7.1'
+        )
+        if batch:
+            items.extend(batch.get('value', []))
+
+    result = []
+    for item in items:
+        f  = item.get('fields', {})
+        at = f.get('System.AssignedTo')
+        result.append({
+            'id':         f.get('System.Id', item['id']),
+            'title':      f.get('System.Title', ''),
+            'state':      f.get('System.State', ''),
+            'type':       f.get('System.WorkItemType', ''),
+            'assignedTo': at.get('displayName', '') if isinstance(at, dict) else (at or ''),
+        })
+    return result
+
+
+# ── Nuevos endpoints: filtros por año ───────────────────────────
+
+@app.route('/api/orgs-for-year/<int:year>')
+def get_orgs_for_year(year: int):
+    """Orgs que tienen al menos un proyecto cuyo PRIMER sprint (cronológico)
+    tiene startDate dentro del año indicado. Chequea orgs en paralelo."""
+    try:
+        all_orgs = _fetch_orgs_from_azure()
+    except Exception as e:
+        app_logger.warning(f'orgs-for-year: Azure API falló, usando fallback .env: {e}')
+        orgs_env = os.getenv('AZURE_DEVOPS_ORGS', '')
+        org_base = os.getenv('AZURE_DEVOPS_ORG', '')
+        nombres  = [o.strip() for o in orgs_env.split(',') if o.strip()]
+        if not nombres and org_base:
+            nombres = [org_base.rstrip('/').split('/')[-1]]
+        all_orgs = [{'nombre': n, 'url': f'https://dev.azure.com/{n}'} for n in nombres]
+
+    def check_org(org_info):
+        org_name = org_info['nombre']
+        try:
+            data = az_get(
+                f'https://dev.azure.com/{org_name}/_apis/projects?api-version=7.1&$top=200'
+            )
+            if not data:
+                return None
+            for proj in data.get('value', []):
+                if _project_first_sprint_in_year(org_name, proj['name'], year):
+                    return org_info
+        except Exception:
+            pass
+        return None
+
+    matching: list = []
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(check_org, o): o for o in all_orgs}
+        for fut in as_completed(futures):
+            result = fut.result()
+            if result:
+                matching.append(result)
+
+    matching.sort(key=lambda x: x['nombre'].lower())
+    app_logger.info(f'GET orgs-for-year/{year}: {len(matching)} matching')
+    return jsonify(matching)
+
+
+@app.route('/api/projects-for-year/<org_name>/<int:year>')
+def get_projects_for_year(org_name: str, year: int):
+    """Proyectos de una org cuyo primer sprint tiene startDate en el año dado.
+    Chequea proyectos en paralelo."""
+    data = az_get(
+        f'https://dev.azure.com/{org_name}/_apis/projects?api-version=7.1&$top=200'
+    )
+    if not data:
+        return jsonify([])
+    excluidos = [e.strip().lower()
+                 for e in os.getenv('PROYECTOS_EXCLUIDOS', '').split(',') if e.strip()]
+    projects  = [p for p in data.get('value', [])
+                 if p['name'].lower() not in excluidos]
+
+    def check_project(proj):
+        if _project_first_sprint_in_year(org_name, proj['name'], year):
+            return {'nombre': proj['name'], 'id': proj['id']}
+        return None
+
+    result: list = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [executor.submit(check_project, p) for p in projects]
+        for fut in as_completed(futures):
+            r = fut.result()
+            if r:
+                result.append(r)
+
+    result.sort(key=lambda x: x['nombre'].lower())
+    app_logger.info(f'GET projects-for-year/{org_name}/{year}: {len(result)} matching')
+    return jsonify(result)
+
+
+@app.route('/api/sprint-report')
+def get_sprint_report():
+    """Reporte completo: sprint actual + anterior.
+    Devuelve items (Task/Bug) con detalles completos + test plan progress.
+    Consulta los dos sprints en paralelo para reducir latencia."""
+    org     = request.args.get('org',     '').strip()
+    project = request.args.get('project', '').strip()
+    if not org or not project:
+        return jsonify({'error': 'Faltan parámetros org y project'}), 400
+
+    try:
+        ref       = urlquote(project, safe='')
+        iter_data = az_get(
+            f'https://dev.azure.com/{org}/{ref}'
+            f'/_apis/work/teamsettings/iterations?api-version=7.1'
+        )
+        if not iter_data:
+            return jsonify({'error': 'No se pudieron obtener iteraciones'}), 404
+
+        iterations = iter_data.get('value', [])
+        def attr(s): return s.get('attributes', {})
+
+        # Fecha del primer sprint del proyecto (para mostrar en UI)
+        with_dates = [i for i in iterations if attr(i).get('startDate')]
+        with_dates.sort(key=lambda x: attr(x)['startDate'])
+        first_sprint_dt = attr(with_dates[0])['startDate'][:10] if with_dates else None
+
+        current  = next((i for i in iterations if attr(i).get('timeFrame') == 'current'), None)
+        pasados  = [i for i in iterations
+                    if attr(i).get('timeFrame') == 'past' and attr(i).get('finishDate')]
+        anterior = (sorted(pasados, key=lambda x: attr(x)['finishDate'], reverse=True)[0]
+                    if pasados else None)
+
+        def build(sprint: dict) -> dict:
+            """Construye datos de un sprint: items Task/Bug + test plan progress."""
+            a = attr(sprint)
+            items    = get_sprint_items(org, project, sprint['path'])
+            testplan = get_testplan_progress(org, project, sprint['name'], sprint['path'])
+            return {
+                'name':       sprint['name'],
+                'startDate':  a.get('startDate',  '')[:10] if a.get('startDate')  else None,
+                'finishDate': a.get('finishDate', '')[:10] if a.get('finishDate') else None,
+                'items':      items,
+                'testplan':   testplan,
+            }
+
+        # Construir current y anterior en paralelo (cada uno llama Azure DevOps)
+        current_data = anterior_data = None
+        sprint_tasks: dict = {}
+        with ThreadPoolExecutor(max_workers=2) as ex:
+            if current:  sprint_tasks['current']  = ex.submit(build, current)
+            if anterior: sprint_tasks['anterior'] = ex.submit(build, anterior)
+            if 'current'  in sprint_tasks: current_data  = sprint_tasks['current'].result()
+            if 'anterior' in sprint_tasks: anterior_data = sprint_tasks['anterior'].result()
+
+        app_logger.info(
+            f'GET sprint-report {org}/{project}: '
+            f'current={current["name"] if current else "none"}, '
+            f'anterior={anterior["name"] if anterior else "none"}'
+        )
+        return jsonify({
+            'firstSprintDate': first_sprint_dt,
+            'current':         current_data,
+            'anterior':        anterior_data,
+        })
+
+    except Exception as e:
+        app_logger.error(f'ERROR sprint-report: {e}', exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':

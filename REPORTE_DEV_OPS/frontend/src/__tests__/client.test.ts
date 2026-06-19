@@ -20,6 +20,9 @@ import {
   apiLogContenido,
   urlDescarga,
   apiSalir,
+  apiOrgsForYear,
+  apiProjectsForYear,
+  apiSprintReport,
 } from '../api/client'
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -189,6 +192,93 @@ describe('apiSalir — método POST', () => {
     await apiSalir()
     const [, options] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
     expect(options?.method).toBe('POST')
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Nuevas funciones de filtrado por año (sprint-report)
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('client.ts — nuevas exports (filtros por año + sprint-report)', () => {
+  it('exporta apiOrgsForYear como función', () => {
+    expect(typeof apiOrgsForYear).toBe('function')
+  })
+  it('exporta apiProjectsForYear como función', () => {
+    expect(typeof apiProjectsForYear).toBe('function')
+  })
+  it('exporta apiSprintReport como función', () => {
+    expect(typeof apiSprintReport).toBe('function')
+  })
+})
+
+describe('apiOrgsForYear — URL con año', () => {
+  beforeEach(() => { vi.mocked(fetch).mockClear() })
+
+  it('construye la ruta /api/reporte-devops/orgs-for-year/<year>', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify([]), { status: 200 })
+    )
+    await apiOrgsForYear(2026)
+    const url = vi.mocked(fetch).mock.calls[0][0] as string
+    expect(url).toBe('/api/reporte-devops/orgs-for-year/2026')
+  })
+
+  it('lanza error si el servidor responde 500', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('err', { status: 500 }))
+    await expect(apiOrgsForYear(2026)).rejects.toThrow('HTTP 500')
+  })
+})
+
+describe('apiProjectsForYear — URL con org y año', () => {
+  beforeEach(() => { vi.mocked(fetch).mockClear() })
+
+  it('construye la ruta /api/reporte-devops/projects-for-year/<org>/<year>', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify([]), { status: 200 })
+    )
+    await apiProjectsForYear('miOrg', 2026)
+    const url = vi.mocked(fetch).mock.calls[0][0] as string
+    expect(url).toBe('/api/reporte-devops/projects-for-year/miOrg/2026')
+  })
+
+  it('encodea correctamente orgs con espacios', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify([]), { status: 200 })
+    )
+    await apiProjectsForYear('My Org', 2026)
+    const url = vi.mocked(fetch).mock.calls[0][0] as string
+    expect(url).toContain(encodeURIComponent('My Org'))
+    expect(url).not.toContain(' ')
+  })
+})
+
+describe('apiSprintReport — URL con query params', () => {
+  beforeEach(() => { vi.mocked(fetch).mockClear() })
+
+  it('construye la ruta /api/reporte-devops/sprint-report con org y project', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ firstSprintDate: null, current: null, anterior: null }), { status: 200 })
+    )
+    await apiSprintReport('miOrg', 'miProyecto')
+    const url = vi.mocked(fetch).mock.calls[0][0] as string
+    expect(url).toContain('/api/reporte-devops/sprint-report')
+    expect(url).toContain('org=miOrg')
+    expect(url).toContain('project=miProyecto')
+  })
+
+  it('encodea correctamente nombres con caracteres especiales', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ firstSprintDate: null, current: null, anterior: null }), { status: 200 })
+    )
+    await apiSprintReport('org A', 'proyecto B')
+    const url = vi.mocked(fetch).mock.calls[0][0] as string
+    expect(url).toContain(encodeURIComponent('org A'))
+    expect(url).toContain(encodeURIComponent('proyecto B'))
+  })
+
+  it('lanza error si el servidor responde 404', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('nf', { status: 404 }))
+    await expect(apiSprintReport('o', 'p')).rejects.toThrow('HTTP 404')
   })
 })
 

@@ -677,3 +677,281 @@ tbody td {
   color: var(--text3);
   font-variant-numeric: tabular-nums;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   Reporte DevOps — Rediseño 2026
+   Sprint report con risk calc · work items · avatares
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Tarjeta de sprint sin padding (secciones tienen el suyo) ── */
+.rdo-sprint-card { padding: 0; overflow: hidden; }
+
+/* ── Cabecera de sprint ─────────────────────────────────────── */
+.rdo-sprint-hdr {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  background: #fafbfc;
+}
+
+.rdo-sprint-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.rdo-first-sprint {
+  font-size: 11px;
+  color: var(--text3);
+  margin-left: auto;
+}
+
+/* ── Sección interna (test plan / work items) ───────────────── */
+.rdo-inner-section {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.rdo-inner-section + .rdo-inner-section {
+  border-top: 1px solid var(--border);
+}
+
+/* ── 4 tarjetas de métricas ─────────────────────────────────── */
+.rdo-metrics-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: var(--border);
+  gap: 1px;
+}
+
+@media (max-width: 640px) {
+  .rdo-metrics-row { grid-template-columns: repeat(2, 1fr); }
+}
+
+.rdo-metric-card {
+  background: #fff;
+  padding: 14px 18px;
+}
+
+.rdo-metric-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text2);
+  margin-bottom: 6px;
+}
+
+.rdo-metric-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--navy);
+  line-height: 1;
+}
+
+.rdo-metric-sub {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 5px;
+  line-height: 1.4;
+}
+
+/* ── Tarjeta de riesgo (4ª métrica) ─────────────────────────── */
+.rdo-risk-card { border-left: 3px solid; }
+
+.risk-bajo  { background: #eaf3de; border-color: #9cc46a; }
+.risk-bajo  .rdo-metric-value { color: #3b6d11; }
+.risk-bajo  .rdo-metric-label,
+.risk-bajo  .rdo-metric-sub   { color: #3b6d11; opacity: .75; }
+
+.risk-medio { background: #faeeda; border-color: #f0b44c; }
+.risk-medio .rdo-metric-value { color: #854f0b; }
+.risk-medio .rdo-metric-label,
+.risk-medio .rdo-metric-sub   { color: #854f0b; opacity: .75; }
+
+.risk-alto  { background: #fcebeb; border-color: #f09999; }
+.risk-alto  .rdo-metric-value { color: #a32d2d; }
+.risk-alto  .rdo-metric-label,
+.risk-alto  .rdo-metric-sub   { color: #a32d2d; opacity: .75; }
+
+.risk-na    { background: var(--gray1); border-color: var(--gray3); }
+.risk-na    .rdo-metric-value { color: var(--text2); }
+
+/* ── Barra de progreso grande ────────────────────────────────── */
+.rdo-progress-section {
+  padding: 10px 20px 12px;
+  border-top: 1px solid var(--border);
+}
+
+.rdo-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text2);
+  margin-bottom: 7px;
+}
+
+.rdo-progress-track {
+  height: 8px;
+  background: var(--gray2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.rdo-progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width .35s ease;
+}
+
+/* ── Stats row (sprint anterior) ─────────────────────────────── */
+.rdo-stats-row {
+  display: flex;
+  gap: 28px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.rdo-stat { display: flex; flex-direction: column; gap: 3px; }
+
+.rdo-stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text2);
+}
+
+.rdo-stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.rdo-stat-value.val-open   { color: var(--orange); }
+.rdo-stat-value.val-closed { color: var(--green); }
+
+/* ── Carpeta colapsable ──────────────────────────────────────── */
+.rdo-folder { margin-bottom: 8px; }
+.rdo-folder:last-child { margin-bottom: 0; }
+
+.rdo-folder-hdr {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--gray1);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 13px;
+  text-align: left;
+  transition: background .1s;
+}
+
+.rdo-folder-hdr:hover { background: #e4e9f0; }
+
+.rdo-chevron {
+  font-size: 10px;
+  color: var(--text3);
+  transition: transform .2s ease;
+  display: inline-block;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.rdo-chevron.open { transform: rotate(90deg); }
+
+.rdo-type-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 20px;
+}
+
+.rdo-pill-task { background: #e6f1fb; color: #185fa5; }
+.rdo-pill-bug  { background: #faece7; color: #993c1d; }
+
+.rdo-folder-count {
+  font-size: 12px;
+  color: var(--text3);
+}
+
+.rdo-folder-body { margin-top: 4px; }
+
+/* ── Tabla de work items ─────────────────────────────────────── */
+.rdo-wi-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+/* Sobrescribe estilos globales de thead/tbody para esta tabla */
+.rdo-wi-table thead th {
+  background: transparent;
+  color: var(--text3);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  padding: 6px 10px;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.rdo-wi-table tbody td {
+  padding: 8px 10px;
+  border-top: none;
+  border-bottom: 1px solid #f0f2f5;
+  vertical-align: middle;
+}
+
+.rdo-wi-table tbody tr:nth-child(odd)  { background: #fff; }
+.rdo-wi-table tbody tr:nth-child(even) { background: #fafbfc; }
+.rdo-wi-table tbody tr:hover           { background: #f0f4fa; cursor: default; }
+.rdo-wi-table tbody tr:last-child td   { border-bottom: none; }
+
+.rdo-wi-row.closed td { opacity: .42; }
+
+.rdo-wi-id    { color: var(--text3); font-size: 12px; white-space: nowrap; min-width: 56px; }
+.rdo-wi-title { max-width: 400px; }
+
+.rdo-wi-state {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.rdo-state-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.rdo-state-dot.closed   { background: var(--green); }
+.rdo-state-dot.open-dot { background: var(--orange); }
+
+/* ── Avatar circular con iniciales ──────────────────────────── */
+.rdo-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  cursor: default;
+  flex-shrink: 0;
+}

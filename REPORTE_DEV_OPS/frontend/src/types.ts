@@ -149,3 +149,36 @@ export interface GeneracionEstado {
   ultima_ejecucion: string
   ultimo_log: string
 }
+
+// ── Filtros por año (nuevos endpoints) ────────────────────
+/** Proyecto filtrado por año de primer sprint */
+export interface ProjectForYear {
+  nombre: string
+  id: string
+}
+
+// ── Sprint report con work items completos ────────────────
+/** Task o Bug con campos completos */
+export interface WorkItem {
+  id: number
+  title: string
+  state: string
+  type: string        // 'Task' | 'Bug'
+  assignedTo: string
+}
+
+/** Datos completos de un sprint (actual o anterior) */
+export interface SprintDetail {
+  name:       string
+  startDate:  string | null
+  finishDate: string | null
+  items:      WorkItem[]
+  testplan:   TestPlanProgress
+}
+
+/** Respuesta de GET /api/sprint-report */
+export interface SprintReportResult {
+  firstSprintDate: string | null
+  current:         SprintDetail | null
+  anterior:        SprintDetail | null
+}
