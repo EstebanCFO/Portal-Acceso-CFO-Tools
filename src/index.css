@@ -279,16 +279,13 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  transition: box-shadow .15s, transform .15s, border-color .15s;
+  transition: box-shadow .15s, border-color .15s;
   cursor: default;
 }
-.app-card.clickable {
-  cursor: pointer;
-}
-.app-card.clickable:hover {
-  box-shadow: 0 4px 20px rgba(10,31,68,.1);
-  transform: translateY(-2px);
-  border-color: var(--navy-light);
+/* Hover sutil en la card: el botón Abrir es el único elemento clickeable */
+.app-card:hover {
+  box-shadow: 0 2px 12px rgba(10,31,68,.07);
+  border-color: var(--border-hover, #c8d0dc);
 }
 
 .app-card-header {

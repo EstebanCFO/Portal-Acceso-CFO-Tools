@@ -14,7 +14,7 @@ const statusBadge = (status: App['status']) => {
 const openBtn = (app: App, onSelect: Props['onSelectApp']) => {
   if (app.status === 'active') {
     return (
-      <button className="btn-open navy" onClick={e => { e.stopPropagation(); onSelect(app) }}>
+      <button className="btn-open navy" onClick={() => onSelect(app)}>
         Abrir →
       </button>
     )
@@ -34,7 +34,7 @@ const Dashboard: FC<Props> = ({ onSelectApp }) => {
       <div className="dashboard-welcome">
         <h1>Portal de Acceso</h1>
         <p>
-          {activeCount} de {totalApps} aplicaciones disponibles — hacé clic en una card para abrirla.
+          {activeCount} de {totalApps} aplicaciones disponibles — hacé clic en <strong>Abrir</strong> para acceder.
         </p>
       </div>
 
@@ -42,8 +42,7 @@ const Dashboard: FC<Props> = ({ onSelectApp }) => {
         {APP_REGISTRY.map(app => (
           <div
             key={app.id}
-            className={`app-card${app.status === 'active' ? ' clickable' : ''}`}
-            onClick={() => { if (app.status === 'active') onSelectApp(app) }}
+            className="app-card"
           >
             {/* Header de la card */}
             <div className="app-card-header">

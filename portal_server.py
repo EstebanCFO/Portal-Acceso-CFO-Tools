@@ -372,6 +372,18 @@ def stop_all_apps():
     return {'ok': True, 'stopped': list(APPS.keys())}
 
 
+@app.post('/api/shutdown-portal')
+def shutdown_portal():
+    """Detiene todas las apps y apaga el gateway (libera el puerto :5174).
+    Usado por el botón "Salir" del portal: para el proceso uvicorn después de
+    enviar la respuesta — el browser recibe la respuesta y luego cierra la pestaña.
+    """
+    _stop_all()
+    # Timer: deja que FastAPI entregue la respuesta antes de matar el proceso.
+    threading.Timer(0.6, lambda: os._exit(0)).start()
+    return {'ok': True, 'message': 'Portal cerrándose…'}
+
+
 # ── Proxy httpx para backends no-inline ──────────────────────────────────────
 # Clientes persistentes por app (reusan conexiones TCP).
 _http: dict[str, httpx.AsyncClient] = {}

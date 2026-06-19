@@ -54,10 +54,17 @@ export default function App() {
   }
 
   // ── "Salir" en el header (sin app activa) ────────────────────────────────
-  // Baja TODOS los servidores corrientes antes de cerrar la pestaña.
+  // 1. Baja todos los subprocesos de las apps (backends + frontends).
+  // 2. Apaga el gateway FastAPI (libera el puerto :5174).
+  // 3. Cierra la pestaña del browser.
   async function handleSalirPortal() {
-    await stopAll()
-    // No cerramos la pestaña — el usuario la cierra manualmente si quiere
+    try {
+      // /api/shutdown-portal detiene subprocesos Y mata uvicorn después de responder
+      await fetch(`${LAUNCHER}/api/shutdown-portal`, { method: 'POST' })
+    } catch {
+      // Gateway ya no disponible — continuar igual
+    }
+    window.close()
   }
 
   // ── beforeunload — seguro de cierre ──────────────────────────────────────

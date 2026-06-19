@@ -419,14 +419,14 @@ describe('Dashboard — camino feliz', () => {
     expect(calledWith.status).toBe('active')
   })
 
-  it('click en card activa llama onSelectApp', () => {
+  it('click en card activa NO llama onSelectApp (solo el botón Abrir lo hace)', () => {
     const onSelect = vi.fn()
     render(<Dashboard onSelectApp={onSelect} />)
     const active = activeApps[0]
     if (!active) return
     const card = screen.getByText(active.name).closest('.app-card')!
     fireEvent.click(card)
-    expect(onSelect).toHaveBeenCalledWith(active)
+    expect(onSelect).not.toHaveBeenCalled()
   })
 
   it('muestra el conteo correcto de apps activas', () => {
@@ -481,12 +481,12 @@ describe('Dashboard — botón Abrir · por tarjeta activa', () => {
         expect(onSelect).toHaveBeenCalledWith(app)
       })
 
-      it('click en la card llama onSelectApp exactamente con esta app', () => {
+      it('click en la card NO llama onSelectApp (solo el botón Abrir lo hace)', () => {
         const onSelect = vi.fn()
         render(<Dashboard onSelectApp={onSelect} />)
         const card = screen.getByText(app.name).closest('.app-card')!
         fireEvent.click(card)
-        expect(onSelect).toHaveBeenCalledWith(app)
+        expect(onSelect).not.toHaveBeenCalled()
       })
 
       it('el objeto recibido por onSelectApp tiene id, url y status correctos', () => {
@@ -712,6 +712,34 @@ describe('App — stop-all al cerrar el portal', () => {
 
     // En portal unificado el gateway escucha en :5174; el launcher legacy era :4999
     expect(sendBeaconMock).toHaveBeenCalledWith(expect.stringMatching(/\/api\/stop-all$/))
+  })
+
+  it('click en "Salir" llama /api/shutdown-portal y luego window.close()', async () => {
+    // Mock fetch: primero resuelve el shutdown-portal, luego cualquier otro call
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, message: 'Portal cerrándose…' }), {
+        status: 200, headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    const closeSpy = vi.spyOn(window, 'close').mockImplementation(() => {})
+
+    render(<PortalApp />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Salir'))
+    })
+
+    // Verificar que se llamó al endpoint shutdown-portal
+    const shutdownCall = vi.mocked(fetch).mock.calls.find(
+      ([url]) => typeof url === 'string' && url.includes('shutdown-portal'),
+    )
+    expect(shutdownCall).toBeDefined()
+    expect(shutdownCall![1]).toMatchObject({ method: 'POST' })
+
+    // Verificar que se intentó cerrar la pestaña
+    expect(closeSpy).toHaveBeenCalledTimes(1)
+
+    closeSpy.mockRestore()
   })
 })
 
