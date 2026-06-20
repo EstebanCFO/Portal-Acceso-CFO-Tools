@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import type { Org, ProjectForYear, SprintReportResult, WorkItem } from '../types'
-import { apiOrgsForYear, apiProjectsForYear, apiSprintReport, apiSalir } from '../api/client'
+import type { Org, Proyecto, SprintReportResult, WorkItem } from '../types'
+import { apiOrgs, apiProyectos, apiSprintReport, apiSalir } from '../api/client'
 
 // Detecta si la app corre embebida en el portal — evaluación estática
 const IN_PORTAL = window.self !== window.top
@@ -367,8 +367,8 @@ export default function ReporteDevOps() {
   const [projectSel, setProjectSel] = useState('')
 
   // Datos de selects
-  const [orgsForYear,      setOrgsForYear]      = useState<Org[]>([])
-  const [projectsForYear,  setProjectsForYear]  = useState<ProjectForYear[]>([])
+  const [orgs,     setOrgs]     = useState<Org[]>([])
+  const [projects, setProjects] = useState<Proyecto[]>([])
 
   // Reporte
   const [reportData,    setReportData]    = useState<SprintReportResult | null>(null)
@@ -383,29 +383,29 @@ export default function ReporteDevOps() {
   const thisYear = new Date().getFullYear()
   const years    = Array.from({ length: 5 }, (_, i) => thisYear - i)
 
-  // ── Cascada: año → orgs ──────────────────────────────────
+  // ── Cascada: año → orgs (carga todas las orgs del PAT — rápido) ───────────
   useEffect(() => {
-    setOrgSel('');     setOrgsForYear([])
-    setProjectSel(''); setProjectsForYear([])
+    setOrgSel('');     setOrgs([])
+    setProjectSel(''); setProjects([])
     setReportData(null); setReportError('')
 
     if (!yearSel) return
     setLoadingOrgs(true)
-    void apiOrgsForYear(Number(yearSel))
-      .then(setOrgsForYear)
+    void apiOrgs()
+      .then(setOrgs)
       .catch(console.error)
       .finally(() => setLoadingOrgs(false))
   }, [yearSel])
 
-  // ── Cascada: org → proyectos ──────────────────────────────
+  // ── Cascada: org → proyectos (todos los proyectos de la org — rápido) ──────
   useEffect(() => {
-    setProjectSel(''); setProjectsForYear([])
+    setProjectSel(''); setProjects([])
     setReportData(null); setReportError('')
 
     if (!orgSel || !yearSel) return
     setLoadingProjects(true)
-    void apiProjectsForYear(orgSel, Number(yearSel))
-      .then(setProjectsForYear)
+    void apiProyectos(orgSel)
+      .then(setProjects)
       .catch(console.error)
       .finally(() => setLoadingProjects(false))
   }, [orgSel, yearSel])
@@ -470,7 +470,7 @@ export default function ReporteDevOps() {
                 ? 'Cargando…'
                 : '— seleccionar —'}
           </option>
-          {orgsForYear.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}
+          {orgs.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}
         </select>
 
         <label>Proyecto</label>
@@ -486,7 +486,7 @@ export default function ReporteDevOps() {
                 ? 'Cargando…'
                 : '— seleccionar —'}
           </option>
-          {projectsForYear.map(p => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}
+          {projects.map(p => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}
         </select>
 
         <button
