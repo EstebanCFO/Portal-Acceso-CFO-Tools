@@ -183,6 +183,14 @@ export interface SprintReportResult {
   anterior:        SprintDetail | null
 }
 
+// ── Organizaciones Habilitadas ────────────────────────────────
+/** Org de Azure con estado habilitado/deshabilitado en DB local */
+export interface OrgHabilitada {
+  nombre: string
+  url:    string
+  estado: 'activa' | 'inactiva'
+}
+
 // ── Consulta Full ─────────────────────────────────────────────
 /** Una entrada del full-report: sprint actual + anterior de un cliente */
 export interface FullReportEntry {

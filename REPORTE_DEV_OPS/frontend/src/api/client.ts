@@ -9,6 +9,7 @@ import type {
   Org, Proyecto, ProyectoInfo, ProyectoDetalle,
   TestPlan, PdfFile, LogFile, GeneracionEstado,
   SprintsResult, ProjectForYear, SprintReportResult, FullReportEntry,
+  OrgHabilitada,
 } from '../types'
 
 const BASE = '/api/reporte-devops'
@@ -86,3 +87,13 @@ export const apiSprintReport = (org: string, project: string) =>
 /** Consulta Full: sprint actual + anterior para los 9 clientes del MAPEO_FULL */
 export const apiFullReport = (year: number) =>
   get<FullReportEntry[]>(`/full-report?year=${year}`)
+
+// ── Organizaciones Habilitadas ─────────────────────────────────
+/** Orgs de Azure + su estado (activa/inactiva) desde DB local */
+export const apiOrgsHabilitadas = () =>
+  get<OrgHabilitada[]>('/organizaciones-habilitadas')
+
+/** Guarda el estado de cada org en la DB local */
+export const apiGuardarOrgsHabilitadas = (
+  orgs: Array<{ nombre: string; estado: string }>,
+) => post<{ ok: boolean; guardadas: number }>('/organizaciones-habilitadas', orgs)

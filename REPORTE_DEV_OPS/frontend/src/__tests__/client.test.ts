@@ -24,6 +24,8 @@ import {
   apiProjectsForYear,
   apiSprintReport,
   apiFullReport,
+  apiOrgsHabilitadas,
+  apiGuardarOrgsHabilitadas,
 } from '../api/client'
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -306,6 +308,64 @@ describe('apiFullReport — Consulta Full', () => {
   it('lanza error si el servidor responde 500', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response('err', { status: 500 }))
     await expect(apiFullReport(2026)).rejects.toThrow('HTTP 500')
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// apiOrgsHabilitadas + apiGuardarOrgsHabilitadas — Organizaciones Habilitadas
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('apiOrgsHabilitadas — GET organizaciones-habilitadas', () => {
+  beforeEach(() => { vi.mocked(fetch).mockClear() })
+
+  it('exporta apiOrgsHabilitadas como función', () => {
+    expect(typeof apiOrgsHabilitadas).toBe('function')
+  })
+
+  it('llama a /api/reporte-devops/organizaciones-habilitadas', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify([]), { status: 200 })
+    )
+    await apiOrgsHabilitadas()
+    const url = vi.mocked(fetch).mock.calls[0][0] as string
+    expect(url).toBe('/api/reporte-devops/organizaciones-habilitadas')
+  })
+
+  it('lanza error si el servidor responde 500', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('err', { status: 500 }))
+    await expect(apiOrgsHabilitadas()).rejects.toThrow('HTTP 500')
+  })
+})
+
+describe('apiGuardarOrgsHabilitadas — POST organizaciones-habilitadas', () => {
+  beforeEach(() => { vi.mocked(fetch).mockClear() })
+
+  it('exporta apiGuardarOrgsHabilitadas como función', () => {
+    expect(typeof apiGuardarOrgsHabilitadas).toBe('function')
+  })
+
+  it('llama a fetch con method POST', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: true, guardadas: 1 }), { status: 200 })
+    )
+    await apiGuardarOrgsHabilitadas([{ nombre: 'MiOrg', estado: 'activa' }])
+    const [, opts] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+    expect(opts?.method).toBe('POST')
+  })
+
+  it('envía el body como JSON', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: true, guardadas: 2 }), { status: 200 })
+    )
+    const payload = [{ nombre: 'OrgA', estado: 'activa' }, { nombre: 'OrgB', estado: 'inactiva' }]
+    await apiGuardarOrgsHabilitadas(payload)
+    const [, opts] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+    expect(opts?.body).toBe(JSON.stringify(payload))
+  })
+
+  it('lanza error si el servidor responde 400', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('bad', { status: 400 }))
+    await expect(apiGuardarOrgsHabilitadas([])).rejects.toThrow('HTTP 400')
   })
 })
 

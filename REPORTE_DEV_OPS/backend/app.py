@@ -7,6 +7,7 @@ Puerto: 5000
 import os
 import json
 import socket
+import sqlite3
 import logging
 import datetime
 import threading
@@ -65,6 +66,31 @@ app_logger.info(f'BASE_DIR:    {BASE_DIR}')
 app_logger.info(f'OUTPUT_DIR:  {OUTPUT_DIR}')
 app_logger.info(f'FRONTEND:    {FRONTEND_URL}')
 app_logger.info('=' * 60)
+
+# ── Base de datos local (SQLite) ─────────────────────────────
+DB_PATH = os.path.join(BASE_DIR, 'devops.db')
+
+
+def _get_db() -> sqlite3.Connection:
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _init_db() -> None:
+    """Crea las tablas locales si no existen."""
+    with _get_db() as conn:
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS organizaciones_habilitadas (
+                organizacion TEXT PRIMARY KEY,
+                estado       TEXT NOT NULL DEFAULT 'activa'
+                             CHECK(estado IN ('activa', 'inactiva'))
+            )
+        ''')
+
+
+_init_db()
+app_logger.info(f'DB local: {DB_PATH}')
 
 # Estado compartido de generación
 estado = {
@@ -688,6 +714,64 @@ def datos():
     try:
         with open(p, 'r', encoding='utf-8') as f: return jsonify(json.load(f))
     except Exception: return jsonify(None)
+
+
+@app.route('/api/organizaciones-habilitadas', methods=['GET'])
+def get_orgs_habilitadas():
+    """Lista de todas las orgs de Azure con su estado en la DB local.
+    Si una org no tiene registro se devuelve estado='activa' por defecto."""
+    try:
+        azure_orgs = _fetch_orgs_from_azure()
+    except Exception as e:
+        app_logger.warning(f'orgs-habilitadas: Azure falló, usando .env: {e}')
+        orgs_env = os.getenv('AZURE_DEVOPS_ORGS', '')
+        org_base = os.getenv('AZURE_DEVOPS_ORG', '')
+        nombres  = [o.strip() for o in orgs_env.split(',') if o.strip()]
+        if not nombres and org_base:
+            nombres = [org_base.rstrip('/').split('/')[-1]]
+        azure_orgs = [{'nombre': n, 'url': f'https://dev.azure.com/{n}'}
+                      for n in nombres]
+
+    with _get_db() as conn:
+        rows      = conn.execute(
+            'SELECT organizacion, estado FROM organizaciones_habilitadas'
+        ).fetchall()
+        db_estado = {r['organizacion']: r['estado'] for r in rows}
+
+    result = [
+        {'nombre': o['nombre'], 'url': o['url'],
+         'estado': db_estado.get(o['nombre'], 'activa')}
+        for o in azure_orgs
+    ]
+    app_logger.info(f'GET organizaciones-habilitadas: {len(result)} orgs')
+    return jsonify(result)
+
+
+@app.route('/api/organizaciones-habilitadas', methods=['POST'])
+def guardar_orgs_habilitadas():
+    """Guarda el estado (activa/inactiva) de cada org en la DB local.
+    Body: [{nombre, estado}]  — UPSERT por organización."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, list):
+        return jsonify({'error': 'Se esperaba una lista [{nombre, estado}]'}), 400
+
+    guardadas = 0
+    with _get_db() as conn:
+        for item in data:
+            nombre = (item.get('nombre') or '').strip()
+            estado = item.get('estado', 'activa')
+            if estado not in ('activa', 'inactiva'):
+                estado = 'activa'
+            if not nombre:
+                continue
+            conn.execute('''
+                INSERT INTO organizaciones_habilitadas (organizacion, estado) VALUES (?, ?)
+                ON CONFLICT(organizacion) DO UPDATE SET estado = excluded.estado
+            ''', (nombre, estado))
+            guardadas += 1
+
+    app_logger.info(f'POST organizaciones-habilitadas: {guardadas} guardadas')
+    return jsonify({'ok': True, 'guardadas': guardadas})
 
 
 @app.route('/api/salir', methods=['POST'])

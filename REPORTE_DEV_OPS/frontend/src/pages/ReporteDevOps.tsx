@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import type { Org, Proyecto, SprintReportResult, WorkItem, FullReportEntry } from '../types'
-import { apiOrgs, apiProyectos, apiSprintReport, apiSalir, apiFullReport } from '../api/client'
+import type { Org, Proyecto, SprintReportResult, WorkItem, FullReportEntry, OrgHabilitada } from '../types'
+import { apiOrgs, apiProyectos, apiSprintReport, apiSalir, apiFullReport,
+         apiOrgsHabilitadas, apiGuardarOrgsHabilitadas } from '../api/client'
 
 // Detecta si la app corre embebida en el portal — evaluación estática
 const IN_PORTAL = window.self !== window.top
@@ -359,6 +360,136 @@ function SprintAnteriorSection({
   )
 }
 
+// ── Modal: Organizaciones Habilitadas ─────────────────────────
+function OrgHabilitadasModal({ onClose }: { onClose: () => void }) {
+  const [orgs,    setOrgs]    = useState<OrgHabilitada[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving,  setSaving]  = useState(false)
+  const [error,   setError]   = useState('')
+  const [saveMsg, setSaveMsg] = useState('')
+
+  useEffect(() => {
+    void apiOrgsHabilitadas()
+      .then(setOrgs)
+      .catch(e => setError(e instanceof Error ? e.message : 'Error al cargar orgs'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const setEstado = (nombre: string, estado: 'activa' | 'inactiva') => {
+    setOrgs(prev => prev.map(o => o.nombre === nombre ? { ...o, estado } : o))
+    setSaveMsg('')
+  }
+
+  const handleGuardar = async () => {
+    setSaving(true)
+    setSaveMsg('')
+    try {
+      const res = await apiGuardarOrgsHabilitadas(
+        orgs.map(o => ({ nombre: o.nombre, estado: o.estado }))
+      )
+      setSaveMsg(`✓ ${res.guardadas} organizaciones guardadas`)
+    } catch (e) {
+      setSaveMsg('Error al guardar — intentá de nuevo')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) onClose()
+  }
+
+  return (
+    <div className="modal-overlay" onClick={handleOverlayClick}>
+      <div className="modal-box">
+
+        {/* ── Cabecera ── */}
+        <div className="modal-hdr">
+          <span className="modal-title">Organizaciones Habilitadas</span>
+          <button className="modal-close" onClick={onClose} type="button" aria-label="Cerrar">✕</button>
+        </div>
+
+        {/* ── Cuerpo ── */}
+        <div className="modal-body">
+          {loading && (
+            <div className="modal-loading">
+              <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+              Consultando Azure DevOps…
+            </div>
+          )}
+          {error && <div className="modal-error">{error}</div>}
+          {!loading && !error && orgs.length === 0 && (
+            <div className="modal-loading" style={{ color: 'var(--text3)' }}>
+              Sin organizaciones disponibles.
+            </div>
+          )}
+          {!loading && !error && orgs.length > 0 && (
+            <table className="org-table">
+              <thead>
+                <tr>
+                  <th>Organización</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orgs.map(o => (
+                  <tr key={o.nombre}>
+                    <td className="org-nombre">{o.nombre}</td>
+                    <td>
+                      <div className="org-estado-toggle">
+                        <button
+                          type="button"
+                          className={`org-toggle-pill${o.estado === 'activa' ? ' pill-activa' : ''}`}
+                          onClick={() => setEstado(o.nombre, 'activa')}
+                        >
+                          Activa
+                        </button>
+                        <button
+                          type="button"
+                          className={`org-toggle-pill${o.estado === 'inactiva' ? ' pill-inactiva' : ''}`}
+                          onClick={() => setEstado(o.nombre, 'inactiva')}
+                        >
+                          Inactiva
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* ── Pie ── */}
+        <div className="modal-footer">
+          {saveMsg && (
+            <span className={`modal-save-msg${saveMsg.startsWith('Error') ? ' error' : ''}`}>
+              {saveMsg}
+            </span>
+          )}
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            <button className="btn btn-sm" onClick={onClose} type="button">
+              Cerrar
+            </button>
+            <button
+              className="btn btn-navy btn-sm"
+              onClick={handleGuardar}
+              disabled={saving || loading || !!error}
+              type="button"
+            >
+              {saving
+                ? <><span className="spinner" style={{ width: 10, height: 10, borderWidth: 2 }} /> Guardando…</>
+                : 'Guardar'
+              }
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
 // ── Bloque por cliente en Consulta Full ───────────────────────
 function ClientBlock({ entry }: { entry: FullReportEntry }) {
   return (
@@ -517,6 +648,9 @@ export default function ReporteDevOps() {
     }
   }
 
+  // ── Modal Organizaciones Habilitadas ─────────────────────
+  const [showOrgModal, setShowOrgModal] = useState(false)
+
   // ── Salir ────────────────────────────────────────────────
   const [saliendo, setSaliendo] = useState(false)
 
@@ -599,6 +733,17 @@ export default function ReporteDevOps() {
             ? <><span className="spinner" style={{ width: 10, height: 10, borderWidth: 2 }} /> Ejecutando…</>
             : '⚡ Consulta Full'
           }
+        </button>
+
+        <div className="toolbar-divider" />
+
+        <button
+          className="btn btn-settings btn-sm"
+          onClick={() => setShowOrgModal(true)}
+          type="button"
+          title="Ver y editar qué organizaciones están habilitadas"
+        >
+          🏢 Org. Habilitadas
         </button>
 
         {!IN_PORTAL && (
@@ -732,6 +877,11 @@ export default function ReporteDevOps() {
         )}
 
       </div>
+
+      {/* ── Modal Organizaciones Habilitadas ──────────────── */}
+      {showOrgModal && (
+        <OrgHabilitadasModal onClose={() => setShowOrgModal(false)} />
+      )}
     </div>
   )
 }
