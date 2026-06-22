@@ -23,6 +23,7 @@ import {
   apiOrgsForYear,
   apiProjectsForYear,
   apiSprintReport,
+  apiFullReport,
 } from '../api/client'
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -279,6 +280,32 @@ describe('apiSprintReport — URL con query params', () => {
   it('lanza error si el servidor responde 404', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response('nf', { status: 404 }))
     await expect(apiSprintReport('o', 'p')).rejects.toThrow('HTTP 404')
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// apiFullReport — Consulta Full
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('apiFullReport — Consulta Full', () => {
+  beforeEach(() => { vi.mocked(fetch).mockClear() })
+
+  it('exporta apiFullReport como función', () => {
+    expect(typeof apiFullReport).toBe('function')
+  })
+
+  it('construye la ruta /api/reporte-devops/full-report?year=<year>', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify([]), { status: 200 })
+    )
+    await apiFullReport(2026)
+    const url = vi.mocked(fetch).mock.calls[0][0] as string
+    expect(url).toBe('/api/reporte-devops/full-report?year=2026')
+  })
+
+  it('lanza error si el servidor responde 500', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('err', { status: 500 }))
+    await expect(apiFullReport(2026)).rejects.toThrow('HTTP 500')
   })
 })
 

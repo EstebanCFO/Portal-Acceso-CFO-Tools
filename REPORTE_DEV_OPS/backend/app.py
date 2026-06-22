@@ -700,6 +700,61 @@ def salir():
     return jsonify({'ok': True, 'mensaje': 'Servidor detenido'})
 
 
+# ── Mapeo fijo de clientes (Consulta Full) ─────────────────────
+# Refleja exactamente el $mapeo del script PowerShell de referencia.
+# Para agregar/quitar un cliente: editar esta lista.
+MAPEO_FULL = [
+    {
+        'org': 'CLARO-CFO', 'id': None,
+        'proyectoRef': 'CML', 'proyectoWiql': 'CML',
+        'cliente': 'Claro - CML',
+    },
+    {
+        'org': 'CLARO-CFO-2', 'id': 'b7f57d38-b782-4854-9f55-8fac935f1d95',
+        'proyectoRef': 'b7f57d38-b782-4854-9f55-8fac935f1d95',
+        'proyectoWiql': 'CLARO - Reingenieria de Ventas',
+        'cliente': 'Claro - Ventas',
+    },
+    {
+        'org': 'Supervielle-CFO', 'id': None,
+        'proyectoRef': 'portalventas', 'proyectoWiql': 'portalventas',
+        'cliente': 'Supervielle',
+    },
+    {
+        'org': 'Infobae-CFO', 'id': None,
+        'proyectoRef': 'Plataform de integracion para clientes y facturacion',
+        'proyectoWiql': 'Plataform de integracion para clientes y facturacion',
+        'cliente': 'Infobae',
+    },
+    {
+        'org': 'COOPERATIVAUNION-CFO', 'id': None,
+        'proyectoRef': 'Cooperativa-Union', 'proyectoWiql': 'Cooperativa-Union',
+        'cliente': 'Cooperativa Union - Billetera',
+    },
+    {
+        'org': 'COOPERATIVAUNION-CFO', 'id': None,
+        'proyectoRef': 'Cooperativa-Union-POCs', 'proyectoWiql': 'Cooperativa-Union-POCs',
+        'cliente': 'Cooperativa Union - Mantenimiento',
+    },
+    {
+        'org': 'PNET-CFO', 'id': None,
+        'proyectoRef': 'Integraciones Visma Human', 'proyectoWiql': 'Integraciones Visma Human',
+        'cliente': 'PNET',
+    },
+    {
+        'org': 'IRSA-CFO', 'id': 'fb02bc1c-042a-455e-aacd-1ce2ffee3298',
+        'proyectoRef': 'fb02bc1c-042a-455e-aacd-1ce2ffee3298',
+        'proyectoWiql': 'Migracion SUF a SICOT',
+        'cliente': 'IRSA - SICOT',
+    },
+    {
+        'org': 'IRSA-CFO', 'id': 'ad726ef4-a9b1-4af2-aeba-0e521cf02188',
+        'proyectoRef': 'ad726ef4-a9b1-4af2-aeba-0e521cf02188',
+        'proyectoWiql': 'Parking -Mantenimiento',
+        'cliente': 'IRSA - Parky',
+    },
+]
+
 # ── Helpers para rediseño: filtrado por año ─────────────────────
 
 def _project_first_sprint_in_year(org: str, project: str, year: int) -> bool:
@@ -909,6 +964,113 @@ def get_sprint_report():
     except Exception as e:
         app_logger.error(f'ERROR sprint-report: {e}', exc_info=True)
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/full-report')
+def get_full_report():
+    """Consulta Full: sprint actual + anterior para todos los proyectos de MAPEO_FULL.
+    Filtra por año: sólo incluye proyectos cuyo primer sprint tiene startDate >= year.
+    Procesa los 9 proyectos en paralelo (max 5 workers) para minimizar latencia."""
+    year = request.args.get('year', type=int)
+    if not year:
+        return jsonify({'error': 'Parámetro year requerido'}), 400
+
+    def process_entry(m: dict) -> dict:
+        org     = m['org']
+        ref     = m['proyectoRef']
+        cliente = m['cliente']
+        base    = {'cliente': cliente, 'org': org, 'proyecto': ref,
+                   'firstSprintDate': None, 'current': None, 'anterior': None}
+        try:
+            encoded_ref = urlquote(ref, safe='')
+            iter_data = az_get(
+                f'https://dev.azure.com/{org}/{encoded_ref}'
+                f'/_apis/work/teamsettings/iterations?api-version=7.1'
+            )
+            if not iter_data:
+                return {**base, 'omitido': True,
+                        'razonOmision': 'Sin iteraciones (error de conexión)'}
+
+            iterations = iter_data.get('value', [])
+
+            def attr(s): return s.get('attributes', {})
+
+            with_dates = [i for i in iterations if attr(i).get('startDate')]
+            if not with_dates:
+                return {**base, 'omitido': True,
+                        'razonOmision': 'Sin sprints con fecha de inicio'}
+
+            with_dates.sort(key=lambda x: attr(x)['startDate'])
+            first      = with_dates[0]
+            first_year = int(attr(first)['startDate'][:4])
+            first_dt   = attr(first)['startDate'][:10]
+
+            if first_year < year:
+                return {**base, 'omitido': True,
+                        'firstSprintDate': first_dt,
+                        'razonOmision': (
+                            f'1° sprint: {first["name"]} ({first_year}) < {year}'
+                        )}
+
+            # Proyecto incluido — obtener sprint actual y anterior
+            current  = next(
+                (i for i in iterations if attr(i).get('timeFrame') == 'current'), None
+            )
+            pasados  = [
+                i for i in iterations
+                if attr(i).get('timeFrame') == 'past' and attr(i).get('finishDate')
+            ]
+            anterior = (
+                sorted(pasados, key=lambda x: attr(x)['finishDate'], reverse=True)[0]
+                if pasados else None
+            )
+
+            def build(sprint: dict) -> dict:
+                a        = attr(sprint)
+                items    = get_sprint_items(org, ref, sprint['path'])
+                testplan = get_testplan_progress(org, ref, sprint['name'], sprint['path'])
+                return {
+                    'name':       sprint['name'],
+                    'startDate':  a.get('startDate',  '')[:10] if a.get('startDate')  else None,
+                    'finishDate': a.get('finishDate', '')[:10] if a.get('finishDate') else None,
+                    'items':      items,
+                    'testplan':   testplan,
+                }
+
+            current_data = anterior_data = None
+            tasks: dict = {}
+            with ThreadPoolExecutor(max_workers=2) as ex:
+                if current:  tasks['current']  = ex.submit(build, current)
+                if anterior: tasks['anterior'] = ex.submit(build, anterior)
+                if 'current'  in tasks: current_data  = tasks['current'].result()
+                if 'anterior' in tasks: anterior_data = tasks['anterior'].result()
+
+            return {
+                **base,
+                'omitido':         False,
+                'razonOmision':    None,
+                'firstSprintDate': first_dt,
+                'current':         current_data,
+                'anterior':        anterior_data,
+            }
+
+        except Exception as e:
+            app_logger.error(f'full-report error {cliente}: {e}', exc_info=True)
+            return {**base, 'omitido': True,
+                    'razonOmision': f'Error: {str(e)[:120]}'}
+
+    results: list = []
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(process_entry, m): m for m in MAPEO_FULL}
+        for fut in as_completed(futures):
+            results.append(fut.result())
+
+    # Restaurar el orden original del MAPEO_FULL
+    orden = {m['cliente']: i for i, m in enumerate(MAPEO_FULL)}
+    results.sort(key=lambda x: orden.get(x['cliente'], 999))
+
+    app_logger.info(f'GET full-report year={year}: {len(results)} entradas')
+    return jsonify(results)
 
 
 if __name__ == '__main__':

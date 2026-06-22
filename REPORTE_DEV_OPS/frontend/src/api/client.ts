@@ -8,7 +8,7 @@
 import type {
   Org, Proyecto, ProyectoInfo, ProyectoDetalle,
   TestPlan, PdfFile, LogFile, GeneracionEstado,
-  SprintsResult, ProjectForYear, SprintReportResult,
+  SprintsResult, ProjectForYear, SprintReportResult, FullReportEntry,
 } from '../types'
 
 const BASE = '/api/reporte-devops'
@@ -82,3 +82,7 @@ export const apiSprintReport = (org: string, project: string) =>
   get<SprintReportResult>(
     `/sprint-report?org=${encodeURIComponent(org)}&project=${encodeURIComponent(project)}`,
   )
+
+/** Consulta Full: sprint actual + anterior para los 9 clientes del MAPEO_FULL */
+export const apiFullReport = (year: number) =>
+  get<FullReportEntry[]>(`/full-report?year=${year}`)

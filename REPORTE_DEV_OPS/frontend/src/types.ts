@@ -182,3 +182,16 @@ export interface SprintReportResult {
   current:         SprintDetail | null
   anterior:        SprintDetail | null
 }
+
+// ── Consulta Full ─────────────────────────────────────────────
+/** Una entrada del full-report: sprint actual + anterior de un cliente */
+export interface FullReportEntry {
+  cliente:         string
+  org:             string
+  proyecto:        string
+  omitido:         boolean
+  razonOmision:    string | null
+  firstSprintDate: string | null
+  current:         SprintDetail | null
+  anterior:        SprintDetail | null
+}

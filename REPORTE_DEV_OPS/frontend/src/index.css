@@ -955,3 +955,116 @@ tbody td {
   cursor: default;
   flex-shrink: 0;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   Consulta Full — estilos de multi-cliente
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Botón Consulta Full (verde acento) ─────────────────────── */
+.btn-full {
+  background: #006B54;
+  color: #fff;
+  border: none;
+}
+
+.btn-full:hover:not(:disabled) { background: #00875A; }
+.btn-full:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ── Divisor en toolbar entre botones ───────────────────────── */
+.toolbar-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* ── Contenedor del reporte full ────────────────────────────── */
+.rdo-full-report {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 20px;
+}
+
+/* ── Encabezado global del full-report ──────────────────────── */
+.rdo-full-report-hdr {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--border);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.rdo-full-report-sub {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text3);
+}
+
+/* ── Bloque por cliente ─────────────────────────────────────── */
+.rdo-client-block {
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  background: #fff;
+}
+
+/* ── Encabezado del cliente ─────────────────────────────────── */
+.rdo-client-hdr {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 20px;
+  background: var(--navy-dark);
+  color: #fff;
+}
+
+.rdo-client-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.rdo-client-meta {
+  font-size: 11px;
+  color: rgba(255,255,255,.50);
+}
+
+.rdo-client-first-sprint {
+  font-size: 11px;
+  color: var(--green-a);
+  margin-left: auto;
+}
+
+/* ── Badge omitido ──────────────────────────────────────────── */
+.rdo-badge-omitido {
+  background: rgba(255,255,255,.12);
+  color: rgba(255,255,255,.65);
+  border: 1px solid rgba(255,255,255,.22);
+  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-weight: 600;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+}
+
+/* ── Mensaje para proyectos omitidos ────────────────────────── */
+.rdo-omitido-msg {
+  padding: 14px 20px;
+  font-size: 13px;
+  color: var(--text3);
+  font-style: italic;
+  background: var(--gray1);
+}
+
+/* ── Grid de sprints dentro de un bloque de cliente ─────────── */
+.rdo-client-block .sprints-grid {
+  padding: 16px;
+  gap: 12px;
+}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import type { Org, Proyecto, SprintReportResult, WorkItem } from '../types'
-import { apiOrgs, apiProyectos, apiSprintReport, apiSalir } from '../api/client'
+import type { Org, Proyecto, SprintReportResult, WorkItem, FullReportEntry } from '../types'
+import { apiOrgs, apiProyectos, apiSprintReport, apiSalir, apiFullReport } from '../api/client'
 
 // Detecta si la app corre embebida en el portal — evaluación estática
 const IN_PORTAL = window.self !== window.top
@@ -359,6 +359,69 @@ function SprintAnteriorSection({
   )
 }
 
+// ── Bloque por cliente en Consulta Full ───────────────────────
+function ClientBlock({ entry }: { entry: FullReportEntry }) {
+  return (
+    <div className="rdo-client-block">
+      <div className="rdo-client-hdr">
+        <span className="rdo-client-name">{entry.cliente}</span>
+        <span className="rdo-client-meta">{entry.org} · {entry.proyecto}</span>
+        {entry.firstSprintDate && (
+          <span className="rdo-client-first-sprint">
+            Inicio: {fmtDate(entry.firstSprintDate)}
+          </span>
+        )}
+        {entry.omitido && (
+          <span className="badge rdo-badge-omitido">OMITIDO</span>
+        )}
+      </div>
+
+      {entry.omitido
+        ? (
+          <div className="rdo-omitido-msg">
+            {entry.razonOmision ?? 'Proyecto omitido por filtro de año'}
+          </div>
+        )
+        : (
+          <div className="sprints-grid">
+            {entry.current
+              ? (
+                <SprintCurrentSection
+                  sprint={entry.current}
+                  firstSprintDate={null}
+                />
+              )
+              : (
+                <div className="card">
+                  <div className="rdo-sprint-hdr">
+                    <span className="badge badge-gray">SPRINT ACTUAL</span>
+                  </div>
+                  <p className="text-muted" style={{ fontSize: 13, padding: '12px 0' }}>
+                    Sin sprint activo.
+                  </p>
+                </div>
+              )
+            }
+            {entry.anterior
+              ? <SprintAnteriorSection sprint={entry.anterior} />
+              : (
+                <div className="card">
+                  <div className="rdo-sprint-hdr">
+                    <span className="badge badge-orange">SPRINT ANTERIOR</span>
+                  </div>
+                  <p className="text-muted" style={{ fontSize: 13, padding: '12px 0' }}>
+                    Sin sprint anterior registrado.
+                  </p>
+                </div>
+              )
+            }
+          </div>
+        )
+      }
+    </div>
+  )
+}
+
 // ── Componente principal ───────────────────────────────────────
 export default function ReporteDevOps() {
   // Filtros en cascada
@@ -370,10 +433,15 @@ export default function ReporteDevOps() {
   const [orgs,     setOrgs]     = useState<Org[]>([])
   const [projects, setProjects] = useState<Proyecto[]>([])
 
-  // Reporte
+  // Reporte individual
   const [reportData,    setReportData]    = useState<SprintReportResult | null>(null)
   const [loadingReport, setLoadingReport] = useState(false)
   const [reportError,   setReportError]   = useState('')
+
+  // Consulta Full
+  const [fullData,    setFullData]    = useState<FullReportEntry[] | null>(null)
+  const [loadingFull, setLoadingFull] = useState(false)
+  const [fullError,   setFullError]   = useState('')
 
   // Loaders de selects
   const [loadingOrgs,    setLoadingOrgs]    = useState(false)
@@ -415,9 +483,10 @@ export default function ReporteDevOps() {
     setReportData(null); setReportError('')
   }, [projectSel])
 
-  // ── Ver reporte ───────────────────────────────────────────
+  // ── Ver reporte (un proyecto) ─────────────────────────────
   const handleVerReporte = async () => {
     if (!orgSel || !projectSel) return
+    setFullData(null); setFullError('')
     setLoadingReport(true)
     setReportData(null)
     setReportError('')
@@ -428,6 +497,23 @@ export default function ReporteDevOps() {
       setReportError(err instanceof Error ? err.message : 'Error al consultar el reporte')
     } finally {
       setLoadingReport(false)
+    }
+  }
+
+  // ── Consulta Full (todos los clientes del MAPEO) ──────────
+  const handleConsultaFull = async () => {
+    if (!yearSel) return
+    setReportData(null); setReportError('')
+    setLoadingFull(true)
+    setFullData(null)
+    setFullError('')
+    try {
+      const data = await apiFullReport(Number(yearSel))
+      setFullData(data)
+    } catch (err) {
+      setFullError(err instanceof Error ? err.message : 'Error al ejecutar Consulta Full')
+    } finally {
+      setLoadingFull(false)
     }
   }
 
@@ -442,7 +528,8 @@ export default function ReporteDevOps() {
     window.parent.postMessage({ type: 'portal:goHome', appId: 'reporte-devops' }, portalUrl)
   }
 
-  const canVer = !!yearSel && !!orgSel && !!projectSel && !loadingReport
+  const canVer  = !!yearSel && !!orgSel && !!projectSel && !loadingReport && !loadingFull
+  const canFull = !!yearSel && !loadingFull && !loadingReport
 
   // ────────────────────────────────────────────────────────
   return (
@@ -500,6 +587,20 @@ export default function ReporteDevOps() {
           }
         </button>
 
+        <div className="toolbar-divider" />
+
+        <button
+          className="btn btn-full btn-sm"
+          onClick={handleConsultaFull}
+          disabled={!canFull}
+          title="Consulta todos los clientes del mapeo de proyectos"
+        >
+          {loadingFull
+            ? <><span className="spinner" style={{ width: 10, height: 10, borderWidth: 2 }} /> Ejecutando…</>
+            : '⚡ Consulta Full'
+          }
+        </button>
+
         {!IN_PORTAL && (
           <div style={{ marginLeft: 'auto' }}>
             <button className="btn btn-danger btn-sm" onClick={handleSalir} disabled={saliendo}>
@@ -513,24 +614,21 @@ export default function ReporteDevOps() {
       <div className="page-content">
 
         {/* Welcome / hint */}
-        {!reportData && !loadingReport && !reportError && (
+        {!reportData && !loadingReport && !reportError &&
+         !fullData  && !loadingFull  && !fullError  && (
           <div className="empty-state">
             <div style={{ fontSize: 36 }}>📊</div>
             <strong>Reporte Azure DevOps — Delivery Center</strong>
             <span className="text-muted">
               {!yearSel
-                ? 'Seleccioná un año, organización y proyecto para ver el reporte.'
-                : !orgSel
-                  ? 'Seleccioná una organización y proyecto.'
-                  : !projectSel
-                    ? 'Seleccioná un proyecto y hacé clic en Ver reporte.'
-                    : 'Hacé clic en Ver reporte para consultar los sprints.'
+                ? 'Seleccioná un año para habilitar los reportes.'
+                : 'Elegí organización + proyecto para Ver reporte, o usá ⚡ Consulta Full para ver todos los clientes.'
               }
             </span>
           </div>
         )}
 
-        {/* Cargando */}
+        {/* Cargando reporte individual */}
         {loadingReport && (
           <div className="empty-state">
             <span className="spinner" style={{
@@ -544,7 +642,21 @@ export default function ReporteDevOps() {
           </div>
         )}
 
-        {/* Error */}
+        {/* Cargando Consulta Full */}
+        {loadingFull && (
+          <div className="empty-state">
+            <span className="spinner" style={{
+              width: 28, height: 28, borderWidth: 3,
+              borderColor: 'var(--gray2)', borderTopColor: 'var(--green)',
+            }} />
+            <strong>Consultando todos los clientes…</strong>
+            <span className="text-muted" style={{ fontSize: 12 }}>
+              Se consultan {/* total mapeo */}9 proyectos en paralelo. Puede demorar 30–60 segundos.
+            </span>
+          </div>
+        )}
+
+        {/* Error reporte individual */}
         {reportError && !loadingReport && (
           <div className="section">
             <div className="card" style={{ borderLeft: '4px solid var(--red)', padding: '16px 20px' }}>
@@ -554,11 +666,19 @@ export default function ReporteDevOps() {
           </div>
         )}
 
-        {/* Reporte */}
+        {/* Error Consulta Full */}
+        {fullError && !loadingFull && (
+          <div className="section">
+            <div className="card" style={{ borderLeft: '4px solid var(--red)', padding: '16px 20px' }}>
+              <div style={{ fontWeight: 600, color: 'var(--red)', marginBottom: 4 }}>Error en Consulta Full</div>
+              <div className="text-muted" style={{ fontSize: 13 }}>{fullError}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Reporte individual */}
         {reportData && !loadingReport && (
           <div className="sprints-grid">
-
-            {/* Sprint Actual */}
             {reportData.current
               ? (
                 <SprintCurrentSection
@@ -577,8 +697,6 @@ export default function ReporteDevOps() {
                 </div>
               )
             }
-
-            {/* Sprint Anterior */}
             {reportData.anterior
               ? <SprintAnteriorSection sprint={reportData.anterior} />
               : (
@@ -592,7 +710,24 @@ export default function ReporteDevOps() {
                 </div>
               )
             }
+          </div>
+        )}
 
+        {/* Consulta Full — todos los clientes */}
+        {fullData && !loadingFull && (
+          <div className="rdo-full-report">
+            <div className="rdo-full-report-hdr">
+              <span>⚡ Consulta Full — {yearSel}</span>
+              <span className="rdo-full-report-sub">
+                {fullData.filter(e => !e.omitido).length} proyectos activos
+                {fullData.some(e => e.omitido) && (
+                  <> · {fullData.filter(e => e.omitido).length} omitidos</>
+                )}
+              </span>
+            </div>
+            {fullData.map((entry, idx) => (
+              <ClientBlock key={`${entry.org}-${entry.proyecto}-${idx}`} entry={entry} />
+            ))}
           </div>
         )}
 
