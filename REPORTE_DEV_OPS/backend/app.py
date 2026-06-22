@@ -969,7 +969,11 @@ def get_sprint_report():
 @app.route('/api/full-report')
 def get_full_report():
     """Consulta Full: sprint actual + anterior para todos los proyectos de MAPEO_FULL.
-    Filtra por año: sólo incluye proyectos cuyo primer sprint tiene startDate >= year.
+    Criterio de inclusión (ORs):
+      1. Primer sprint del proyecto tiene startDate en el año indicado, O
+      2. Tiene sprint activo (timeFrame=current) o futuro, O
+      3. Tiene algún sprint con finishDate en el año indicado.
+    Si no cumple ninguno → omitido.
     Procesa los 9 proyectos en paralelo (max 5 workers) para minimizar latencia."""
     year = request.args.get('year', type=int)
     if not year:
@@ -1006,11 +1010,23 @@ def get_full_report():
             first_dt   = attr(first)['startDate'][:10]
 
             if first_year < year:
-                return {**base, 'omitido': True,
-                        'firstSprintDate': first_dt,
-                        'razonOmision': (
-                            f'1° sprint: {first["name"]} ({first_year}) < {year}'
-                        )}
+                # Incluir igual si tiene sprints activos/futuros o con finishDate en el año
+                yr_str      = str(year)
+                has_open    = any(
+                    attr(i).get('timeFrame') in ('current', 'future')
+                    for i in iterations
+                )
+                has_fin_yr  = any(
+                    (attr(i).get('finishDate') or '').startswith(yr_str)
+                    for i in iterations
+                )
+                if not (has_open or has_fin_yr):
+                    return {**base, 'omitido': True,
+                            'firstSprintDate': first_dt,
+                            'razonOmision': (
+                                f'1° sprint: {first["name"]} ({first_year}) — '
+                                f'sin sprints activos ni finalizados en {year}'
+                            )}
 
             # Proyecto incluido — obtener sprint actual y anterior
             current  = next(
