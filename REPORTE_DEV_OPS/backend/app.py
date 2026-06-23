@@ -716,6 +716,40 @@ def datos():
     except Exception: return jsonify(None)
 
 
+@app.route('/api/organizaciones-activas')
+def get_orgs_activas():
+    """Devuelve solo las orgs marcadas como 'activa' en la DB local.
+    Si la tabla está vacía (nunca configurada), devuelve todas las orgs de Azure
+    como fallback — así el dropdown funciona desde el primer arranque."""
+    with _get_db() as conn:
+        rows = conn.execute(
+            "SELECT organizacion FROM organizaciones_habilitadas WHERE estado='activa'"
+        ).fetchall()
+
+    if rows:
+        nombres = [r['organizacion'] for r in rows]
+        return jsonify([
+            {'nombre': n, 'url': f'https://dev.azure.com/{n}'}
+            for n in nombres
+        ])
+
+    # Tabla vacía → fallback: todas las orgs de Azure
+    app_logger.info('organizaciones-activas: tabla vacía, usando Azure como fallback')
+    try:
+        return jsonify(_fetch_orgs_from_azure())
+    except Exception as e:
+        app_logger.warning(f'organizaciones-activas fallback Azure falló: {e}')
+        orgs_env = os.getenv('AZURE_DEVOPS_ORGS', '')
+        org_base = os.getenv('AZURE_DEVOPS_ORG', '')
+        nombres  = [o.strip() for o in orgs_env.split(',') if o.strip()]
+        if not nombres and org_base:
+            nombres = [org_base.rstrip('/').split('/')[-1]]
+        return jsonify([
+            {'nombre': n, 'url': f'https://dev.azure.com/{n}'}
+            for n in nombres
+        ])
+
+
 @app.route('/api/organizaciones-habilitadas', methods=['GET'])
 def get_orgs_habilitadas():
     """Lista de todas las orgs de Azure con su estado en la DB local.

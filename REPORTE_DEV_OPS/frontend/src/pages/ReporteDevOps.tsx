@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { Org, Proyecto, SprintReportResult, WorkItem, FullReportEntry, OrgHabilitada } from '../types'
-import { apiOrgs, apiProyectos, apiSprintReport, apiSalir, apiFullReport,
+import { apiOrgsActivas, apiProyectos, apiSprintReport, apiSalir, apiFullReport,
          apiOrgsHabilitadas, apiGuardarOrgsHabilitadas } from '../api/client'
 
 // Detecta si la app corre embebida en el portal — evaluación estática
@@ -555,8 +555,10 @@ function ClientBlock({ entry }: { entry: FullReportEntry }) {
 
 // ── Componente principal ───────────────────────────────────────
 export default function ReporteDevOps() {
+  // Año actual (para Consulta Full — sin selector de año en UI)
+  const currentYear = new Date().getFullYear()
+
   // Filtros en cascada
-  const [yearSel,    setYearSel]    = useState('')
   const [orgSel,     setOrgSel]     = useState('')
   const [projectSel, setProjectSel] = useState('')
 
@@ -575,39 +577,30 @@ export default function ReporteDevOps() {
   const [fullError,   setFullError]   = useState('')
 
   // Loaders de selects
-  const [loadingOrgs,    setLoadingOrgs]    = useState(false)
+  const [loadingOrgs,     setLoadingOrgs]     = useState(false)
   const [loadingProjects, setLoadingProjects] = useState(false)
 
-  // Años disponibles (año actual → -4)
-  const thisYear = new Date().getFullYear()
-  const years    = Array.from({ length: 5 }, (_, i) => thisYear - i)
-
-  // ── Cascada: año → orgs (carga todas las orgs del PAT — rápido) ───────────
+  // ── Carga de orgs al montar (desde tabla habilitadas — solo activas) ────────
   useEffect(() => {
-    setOrgSel('');     setOrgs([])
-    setProjectSel(''); setProjects([])
-    setReportData(null); setReportError('')
-
-    if (!yearSel) return
     setLoadingOrgs(true)
-    void apiOrgs()
+    void apiOrgsActivas()
       .then(setOrgs)
       .catch(console.error)
       .finally(() => setLoadingOrgs(false))
-  }, [yearSel])
+  }, [])
 
-  // ── Cascada: org → proyectos (todos los proyectos de la org — rápido) ──────
+  // ── Cascada: org → proyectos ─────────────────────────────────────────────────
   useEffect(() => {
     setProjectSel(''); setProjects([])
     setReportData(null); setReportError('')
 
-    if (!orgSel || !yearSel) return
+    if (!orgSel) return
     setLoadingProjects(true)
     void apiProyectos(orgSel)
       .then(setProjects)
       .catch(console.error)
       .finally(() => setLoadingProjects(false))
-  }, [orgSel, yearSel])
+  }, [orgSel])
 
   // ── Limpiar reporte al cambiar proyecto ───────────────────
   useEffect(() => {
@@ -631,15 +624,14 @@ export default function ReporteDevOps() {
     }
   }
 
-  // ── Consulta Full (todos los clientes del MAPEO) ──────────
+  // ── Consulta Full (todos los clientes del MAPEO, año actual) ─────────────────
   const handleConsultaFull = async () => {
-    if (!yearSel) return
     setReportData(null); setReportError('')
     setLoadingFull(true)
     setFullData(null)
     setFullError('')
     try {
-      const data = await apiFullReport(Number(yearSel))
+      const data = await apiFullReport(currentYear)
       setFullData(data)
     } catch (err) {
       setFullError(err instanceof Error ? err.message : 'Error al ejecutar Consulta Full')
@@ -662,8 +654,8 @@ export default function ReporteDevOps() {
     window.parent.postMessage({ type: 'portal:goHome', appId: 'reporte-devops' }, portalUrl)
   }
 
-  const canVer  = !!yearSel && !!orgSel && !!projectSel && !loadingReport && !loadingFull
-  const canFull = !!yearSel && !loadingFull && !loadingReport
+  const canVer  = !!orgSel && !!projectSel && !loadingReport && !loadingFull
+  const canFull = !loadingFull && !loadingReport
 
   // ────────────────────────────────────────────────────────
   return (
@@ -672,24 +664,14 @@ export default function ReporteDevOps() {
       {/* ── Toolbar ─────────────────────────────────────── */}
       <div className="toolbar">
 
-        <label>Año</label>
-        <select value={yearSel} onChange={e => setYearSel(e.target.value)}>
-          <option value="">Seleccionar año…</option>
-          {years.map(y => <option key={y} value={y}>{y}</option>)}
-        </select>
-
         <label>Organización</label>
         <select
           value={orgSel}
           onChange={e => setOrgSel(e.target.value)}
-          disabled={!yearSel || loadingOrgs}
+          disabled={loadingOrgs}
         >
           <option value="">
-            {!yearSel
-              ? '— elegir año primero —'
-              : loadingOrgs
-                ? 'Cargando…'
-                : '— seleccionar —'}
+            {loadingOrgs ? 'Cargando…' : '— seleccionar —'}
           </option>
           {orgs.map(o => <option key={o.nombre} value={o.nombre}>{o.nombre}</option>)}
         </select>
@@ -765,10 +747,7 @@ export default function ReporteDevOps() {
             <div style={{ fontSize: 36 }}>📊</div>
             <strong>Reporte Azure DevOps — Delivery Center</strong>
             <span className="text-muted">
-              {!yearSel
-                ? 'Seleccioná un año para habilitar los reportes.'
-                : 'Elegí organización + proyecto para Ver reporte, o usá ⚡ Consulta Full para ver todos los clientes.'
-              }
+              Elegí organización + proyecto para Ver reporte, o usá ⚡ Consulta Full para ver todos los clientes.
             </span>
           </div>
         )}
@@ -862,7 +841,7 @@ export default function ReporteDevOps() {
         {fullData && !loadingFull && (
           <div className="rdo-full-report">
             <div className="rdo-full-report-hdr">
-              <span>⚡ Consulta Full — {yearSel}</span>
+              <span>⚡ Consulta Full — {currentYear}</span>
               <span className="rdo-full-report-sub">
                 {fullData.filter(e => !e.omitido).length} proyectos activos
                 {fullData.some(e => e.omitido) && (

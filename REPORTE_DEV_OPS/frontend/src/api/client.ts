@@ -40,6 +40,9 @@ export const apiEstado    = () => get<GeneracionEstado>('/estado')
 // ── Organizaciones ───────────────────────────────────────
 export const apiOrgs = () => get<Org[]>('/organizaciones')
 
+/** Solo las orgs marcadas como "activa" en la DB local (sin llamada Azure) */
+export const apiOrgsActivas = () => get<Org[]>('/organizaciones-activas')
+
 // ── Proyectos ────────────────────────────────────────────
 export const apiProyectos    = (org: string) => get<Proyecto[]>(`/proyectos/${encodeURIComponent(org)}`)
 export const apiProyectoInfo = (org: string, proyecto: string) =>

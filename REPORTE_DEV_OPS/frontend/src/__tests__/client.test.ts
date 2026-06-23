@@ -11,6 +11,7 @@ import {
   apiGenerar,
   apiEstado,
   apiOrgs,
+  apiOrgsActivas,
   apiProyectos,
   apiProyectoInfo,
   apiProyectoDetalle,
@@ -49,6 +50,10 @@ describe('client.ts — exports', () => {
     expect(typeof apiOrgs).toBe('function')
   })
 
+  it('exporta apiOrgsActivas como función', () => {
+    expect(typeof apiOrgsActivas).toBe('function')
+  })
+
   it('exporta apiProyectos como función', () => {
     expect(typeof apiProyectos).toBe('function')
   })
@@ -83,6 +88,28 @@ describe('client.ts — exports', () => {
 
   it('exporta apiSalir como función', () => {
     expect(typeof apiSalir).toBe('function')
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// apiOrgsActivas — llama al endpoint correcto
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('apiOrgsActivas — endpoint organizaciones-activas', () => {
+  beforeEach(() => { vi.mocked(fetch).mockClear() })
+
+  it('llama a /api/reporte-devops/organizaciones-activas', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify([]), { status: 200 })
+    )
+    await apiOrgsActivas()
+    const url = vi.mocked(fetch).mock.calls[0][0] as string
+    expect(url).toBe('/api/reporte-devops/organizaciones-activas')
+  })
+
+  it('lanza error si el servidor responde 503', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('err', { status: 503 }))
+    await expect(apiOrgsActivas()).rejects.toThrow('HTTP 503')
   })
 })
 
