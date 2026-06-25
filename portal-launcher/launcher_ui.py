@@ -1,8 +1,7 @@
 """
 launcher_ui.py — Portal de Acceso CFOTech
-Splash screen minimalista: spinner animado + "Iniciando Plataforma".
+Splash screen: spinner animado + progress bar con porcentaje + texto de paso.
 Se cierra automáticamente cuando el portal levanta.
-Sin botones ni paneles de estado — la secuencia es invisible para el usuario.
 """
 
 import tkinter as tk
@@ -59,6 +58,7 @@ C_ACCENT    = '#4FD1B2'
 C_WHITE     = '#FFFFFF'
 C_MUTED     = '#566C87'
 C_ERROR     = '#FC8181'
+C_TRACK     = '#162235'   # fondo de la barra de progreso
 
 
 # ── Helpers de proceso ────────────────────────────────────────────────────────
@@ -98,11 +98,14 @@ def _run_proc(cmd: str, cwd: str) -> subprocess.Popen:
 
 class LauncherUI:
 
-    W, H    = 280, 210
+    W, H    = 300, 248      # ligeramente más ancho para la barra de progreso
     HDR_H   = 46
-    SPIN_R  = 28          # radio del arco del spinner (px)
-    SPIN_MS = 25          # ms entre frames del spinner
-    SPIN_STEP = 9         # grados por frame
+    SPIN_R  = 28            # radio del arco del spinner (px)
+    SPIN_MS = 25            # ms entre frames del spinner
+    SPIN_STEP = 9           # grados por frame
+    BAR_W   = 230           # ancho de la barra de progreso
+    BAR_H   = 8             # alto de la barra de progreso
+    BAR_R   = 4             # radio de esquinas redondeadas
 
     def __init__(self):
         self._procs:   dict = {}
@@ -111,6 +114,7 @@ class LauncherUI:
         self._angle    = 0
         self._spin_job = None
         self._error    = False
+        self._pct      = 0
 
         self.root = tk.Tk()
         self._configure_root()
@@ -145,8 +149,6 @@ class LauncherUI:
         hdr = tk.Frame(parent, bg=C_HEADER, height=self.HDR_H)
         hdr.pack(fill='x')
         hdr.pack_propagate(False)
-        for evt in ('<Button-1>', '<B1-Motion>'):
-            hdr.bind(evt, self._drag_start if '1>' in evt else self._drag_move)
         hdr.bind('<Button-1>',  self._drag_start)
         hdr.bind('<B1-Motion>', self._drag_move)
 
@@ -179,7 +181,7 @@ class LauncherUI:
         # Botón cerrar
         close = tk.Label(hdr, text='✕', bg=C_HEADER, fg=C_MUTED,
                          font=('Segoe UI', 12), cursor='hand2')
-        close.place(x=self.W - 26, y=14)
+        close.place(x=self.W - 28, y=14)
         close.bind('<Button-1>', lambda _: self._on_close())
         close.bind('<Enter>',    lambda _: close.config(fg=C_WHITE))
         close.bind('<Leave>',    lambda _: close.config(fg=C_MUTED))
@@ -192,24 +194,100 @@ class LauncherUI:
         size = (self.SPIN_R + 8) * 2
         self._canvas = tk.Canvas(body, width=size, height=size,
                                  bg=C_BODY, highlightthickness=0)
-        self._canvas.pack(pady=(22, 0))
+        self._canvas.pack(pady=(18, 0))
 
         # Título principal
         tk.Label(body, text='Iniciando Plataforma',
                  bg=C_BODY, fg=C_WHITE,
                  font=('Segoe UI', 12, 'bold')
-                 ).pack(pady=(10, 0))
+                 ).pack(pady=(8, 0))
 
         # Texto de paso (step detail)
         self.step_var = tk.StringVar(value='')
         self.step_lbl = tk.Label(body, textvariable=self.step_var,
                                  bg=C_BODY, fg=C_MUTED,
                                  font=('Segoe UI', 8),
-                                 wraplength=240, justify='center')
-        self.step_lbl.pack(pady=(4, 0))
+                                 wraplength=260, justify='center')
+        self.step_lbl.pack(pady=(3, 0))
+
+        # ── Barra de progreso ──────────────────────────────────────────────
+        bar_frame = tk.Frame(body, bg=C_BODY)
+        bar_frame.pack(pady=(12, 0))
+
+        self._bar_canvas = tk.Canvas(
+            bar_frame,
+            width=self.BAR_W, height=self.BAR_H,
+            bg=C_BODY, highlightthickness=0,
+        )
+        self._bar_canvas.pack()
+
+        # Porcentaje a la derecha de la barra
+        pct_row = tk.Frame(body, bg=C_BODY)
+        pct_row.pack(pady=(4, 0))
+        self._pct_var = tk.StringVar(value='0%')
+        tk.Label(pct_row, textvariable=self._pct_var,
+                 bg=C_BODY, fg=C_ACCENT,
+                 font=('Segoe UI', 8, 'bold')).pack()
+
+        # Dibuja la barra inicial vacía
+        self._draw_bar(0)
 
         # Inicia animación del spinner
         self._spin()
+
+    # ── barra de progreso ─────────────────────────────────────────────────────
+
+    def _draw_bar(self, pct: int):
+        """Redibuja la barra de progreso para el porcentaje dado (0-100)."""
+        c  = self._bar_canvas
+        w  = self.BAR_W
+        h  = self.BAR_H
+        r  = self.BAR_R
+        c.delete('all')
+
+        # Pista (fondo)
+        c.create_rounded_rect = lambda *a, **kw: self._rounded_rect(c, *a, **kw)
+
+        # Fondo de la pista
+        self._rounded_rect(c, 0, 0, w, h, r, fill=C_TRACK, outline='')
+
+        # Porción rellena
+        filled_w = max(0, int(w * pct / 100))
+        if filled_w > 0:
+            self._rounded_rect(c, 0, 0, filled_w, h, r, fill=C_ACCENT, outline='')
+
+    def _rounded_rect(self, canvas, x1, y1, x2, y2, radius, **kw):
+        """Dibuja un rectángulo con esquinas redondeadas en el canvas dado."""
+        r = radius
+        # Si el ancho es menor que 2*radio, recortar el radio
+        r = min(r, (x2 - x1) // 2, (y2 - y1) // 2)
+        if r < 1:
+            canvas.create_rectangle(x1, y1, x2, y2, **kw)
+            return
+        # Construir polígono con arcos en las esquinas
+        canvas.create_polygon(
+            x1 + r, y1,
+            x2 - r, y1,
+            x2,     y1,
+            x2,     y1 + r,
+            x2,     y2 - r,
+            x2,     y2,
+            x2 - r, y2,
+            x1 + r, y2,
+            x1,     y2,
+            x1,     y2 - r,
+            x1,     y1 + r,
+            x1,     y1,
+            smooth=True, **kw,
+        )
+
+    def _set_progress(self, pct: int):
+        """Actualiza la barra y el porcentaje. Thread-safe."""
+        self._pct = pct
+        def _update():
+            self._draw_bar(pct)
+            self._pct_var.set(f'{pct}%')
+        self.root.after(0, _update)
 
     # ── spinner ───────────────────────────────────────────────────────────────
 
@@ -295,14 +373,14 @@ class LauncherUI:
     def _startup_sequence(self):
         # 1. Liberar el puerto del portal (5174 = gateway unificado)
         self._set_step('Liberando puertos…')
+        self._set_progress(10)
         _kill_port(PORTAL_PORT)
         time.sleep(0.4)
+        self._set_progress(25)
 
         # 2. Limpiar caché del portal antes de arrancar
         #    · __pycache__ en la raíz → bytecode viejo del gateway
         #    · node_modules/.vite/    → caché de módulos del Vite dev server
-        #    Esto garantiza que el gateway y el frontend arrancan con código fresco
-        #    sin necesidad de borrar manualmente o reiniciar el sistema.
         self._set_step('Limpiando caché…')
         import shutil as _shutil
         # Python bytecode — raíz del portal
@@ -320,6 +398,7 @@ class LauncherUI:
                 _shutil.rmtree(_vite_cache, ignore_errors=True)
             except Exception:
                 pass
+        self._set_progress(50)
 
         # 3. pip install — dependencias del gateway (uvicorn, fastapi, httpx, etc.)
         self._set_step('Verificando dependencias…')
@@ -332,6 +411,7 @@ class LauncherUI:
                 shell=True,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
+        self._set_progress(75)
 
         # 4. Arrancar portal_server.py (gateway unificado en PORTAL_PORT)
         self._set_step('Iniciando plataforma…')
@@ -344,10 +424,13 @@ class LauncherUI:
             )
 
         # 5. Esperar a que el gateway responda (hasta 45s — arranca backends en background)
-        self._set_step('')
+        self._set_step('Esperando respuesta del portal…')
         deadline = time.time() + 45
         while time.time() < deadline:
             if _ping(f'{local_portal}/api/health', 1):
+                self._set_progress(100)
+                self._set_step('¡Listo!')
+                time.sleep(0.4)
                 self.root.after(0, self._on_portal_ready)
                 return
             time.sleep(1)
