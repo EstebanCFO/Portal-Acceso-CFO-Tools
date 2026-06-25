@@ -81,7 +81,7 @@ export default function UploadZone({
       ) : filename ? (
         <>
           <span className="uz-icon">✅</span>
-          <span className="uz-file">{filename}</span>
+          <span className="uz-file" title={filename}>{filename}</span>
           <span className="uz-hint">Clic para reemplazar</span>
         </>
       ) : (

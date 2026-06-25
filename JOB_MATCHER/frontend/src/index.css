@@ -259,6 +259,11 @@ html, body {
 }
 .upload-zone .uz-file {
   font-size: 12px; font-weight: 600; color: var(--green);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 8px;
 }
 
 /* Summary box (after upload) */
