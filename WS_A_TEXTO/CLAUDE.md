@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Proyecto
 
-**Sound Catch** — Pipeline de transcripción de audio multi-formato y multi-origen a texto. Convierte archivos WAV, OGG, MP3, M4A, FLAC (entre otros) usando Whisper como backend principal.
+**WA a Texto** (módulo interno: `sound_catch`) — Pipeline de transcripción de audio multi-formato y multi-origen a texto. Convierte archivos WAV, OGG, MP3, M4A, FLAC (entre otros) usando Whisper como backend principal.
 
 ## Comandos
 
@@ -89,7 +89,7 @@ cd web/frontend && npm test
 ```
 
 El frontend sigue el Design System del Portal CFOTech (`index.css`): tokens CSS, sin Tailwind, sin MUI.
-Detecta `IN_PORTAL = window.self !== window.top` y muestra el botón Salir con `postMessage`.
+Detecta `IN_PORTAL = window.self !== window.top`: si es `true` el `Header` retorna `null` (el portal provee su propio header con "← Volver"). En standalone muestra header con botón "Salir".
 
 Para integrar en el Portal de Acceso ver `web/PORTAL_INTEGRATION.md`.
 
