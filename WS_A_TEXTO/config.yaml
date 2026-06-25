@@ -1,0 +1,12 @@
+transcription:
+  backend: whisper_local   # whisper_local | openai_api
+  model: base              # tiny | base | small | medium | large-v3
+  language: null           # null = detección automática | "es" | "en" | etc.
+
+output:
+  default_format: txt      # txt | srt | json
+  directory: ./transcriptions
+
+conversion:
+  sample_rate: 16000
+  channels: 1

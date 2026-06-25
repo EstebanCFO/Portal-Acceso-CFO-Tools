@@ -128,17 +128,18 @@ APP_CONFIGS: dict[str, dict] = {
     },
     'sound-catch': {
         # FastAPI :5008 (backend Whisper) + React Vite :5009 (frontend)
-        # Path absoluto: Sound Catch es app hermana del Portal (fuera del BASE_DIR).
-        # Cmd usa _PY_CMD para evitar App Execution Aliases de Windows Store.
+        # WS_A_TEXTO está dentro del repo del portal (BASE_DIR / 'WS_A_TEXTO').
+        # En portal_server.py el backend se monta inline — este config es solo para
+        # el launcher legacy (:4999) que raramente se usa.
         'backend': {
-            'dir':     os.path.join(_APPS_ROOT, 'Sound Catch', 'web', 'backend'),
+            'dir':     os.path.join(BASE_DIR, 'WS_A_TEXTO', 'web', 'backend'),
             'cmd':     f'{_PY_CMD} app.py',
             'health':  'http://localhost:5008/api/health',
             'timeout': 30,
             'label':   'Backend FastAPI',
         },
         'frontend': {
-            'dir':     os.path.join(_APPS_ROOT, 'Sound Catch', 'web', 'frontend'),
+            'dir':     os.path.join(BASE_DIR, 'WS_A_TEXTO', 'web', 'frontend'),
             'cmd':     'npm run dev',
             'url':     'http://localhost:5009',
             'timeout': 40,

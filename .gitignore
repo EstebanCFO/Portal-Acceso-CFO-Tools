@@ -51,6 +51,20 @@ db/_tmp/
 # Archivos Excel con datos sensibles
 *.xlsx
 
+# Archivos de audio (WS_A_TEXTO — archivos de prueba y subidas)
+*.ogg
+*.mp3
+*.wav
+*.m4a
+*.flac
+*.opus
+*.webm
+transcriptions/
+uploads/
+
+# pytest
+.pytest_cache/
+
 # OS
 .DS_Store
 Thumbs.db

@@ -73,7 +73,7 @@ export const APP_REGISTRY: App[] = [
   },
   {
     id:          'sound-catch',
-    name:        'Sound Catch',
+    name:        'WA a Texto',
     description: 'Transcripcion de audio multi-formato con IA — WAV, OGG, MP3, WhatsApp PTT y mas',
     icon:        '🎙',
     // Servido desde el gateway unificado — sin puerto separado, sin delay.
@@ -81,9 +81,9 @@ export const APP_REGISTRY: App[] = [
     type:        'iframe',
     iconBg:      '#E6FAF5',
     iconColor:   '#00A878',
-    tags:        ['Audio', 'IA', 'Transcripcion'],
+    tags:        ['Audio', 'IA', 'Transcripcion', 'WhatsApp'],
     status:      'active',
-    category:    'Productividad',
+    category:    '',
   },
 ]
 

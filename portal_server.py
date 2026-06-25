@@ -6,25 +6,25 @@ Un solo proceso. Un solo puerto: http://localhost:5174
 Al arrancar:
   • Inicia TODOS los backends en paralelo (Reporte DevOps, Job Matcher,
     Bandas Salariales, Survey) — sin esperar a que el usuario abra una app.
-  • Sound Catch: router FastAPI montado inline (sin subprocess, sin puerto extra).
+  • WS_A_TEXTO: router FastAPI montado inline (sin subprocess, sin puerto extra).
   • Inicia los frontends Vite de cada app (si no tienen dist/ ya construido).
   • Sirve el portal React desde dist/ (o proxea al Vite de dev en :5175).
-  • Sirve Sound Catch frontend desde dist/ en /apps/sound-catch/.
+  • Sirve WS_A_TEXTO frontend desde dist/ en /apps/sound-catch/.
 
 Reemplaza: portal-launcher/launcher.py (:4999) y la necesidad de Vite corriendo
 en :5174 como punto de entrada. El viejo launcher.py queda como fallback.
 
 ─── Modo dev (cuando se está desarrollando el portal o una app) ───────────────
-  Portal:     npm run dev  en Portal de Acceso/ (Vite escucha en :5175)
-              El gateway en :5174 lo proxea automáticamente.
-  Sound Catch: npm run dev  en web/frontend/ (Vite en :5009 con base /apps/sound-catch/)
-               Y python app.py  en web/backend/ (:5008)
+  Portal:      npm run dev  en Portal de Acceso/ (Vite escucha en :5175)
+               El gateway en :5174 lo proxea automáticamente.
+  WS_A_TEXTO:  npm run dev  en WS_A_TEXTO/web/frontend/ (Vite en :5009 con base /apps/sound-catch/)
+               Y python app.py  en WS_A_TEXTO/web/backend/ (:5008)
                El gateway proxea /apps/sound-catch/ → :5009
 
 ─── Modo prod (uso diario, zero-delay) ────────────────────────────────────────
-  1. cd "Portal de Acceso" && npm run build   (una vez o al actualizar el portal)
-  2. cd "Sound Catch/web/frontend" && npm run build  (una vez o al actualizar SC)
-  3. python portal_server.py                          (el único comando que importa)
+  1. cd "Portal de Acceso" && npm run build              (una vez o al actualizar el portal)
+  2. cd "WS_A_TEXTO/web/frontend" && npm run build       (una vez o al actualizar WS_A_TEXTO)
+  3. python portal_server.py                             (el único comando que importa)
 """
 
 import os
@@ -86,9 +86,9 @@ APPS: dict[str, dict] = {
         # Frontend: servido como estático desde dist/
         # Si dist/ no existe, el gateway proxea al Vite dev en :5009
         'frontend_cmd':    'npm run dev',
-        'frontend_dir':    APPS_ROOT / 'Sound Catch' / 'web' / 'frontend',
+        'frontend_dir':    BASE_DIR / 'WS_A_TEXTO' / 'web' / 'frontend',
         'frontend_port':   5009,
-        'frontend_dist':   APPS_ROOT / 'Sound Catch' / 'web' / 'frontend' / 'dist',
+        'frontend_dist':   BASE_DIR / 'WS_A_TEXTO' / 'web' / 'frontend' / 'dist',
     },
     'reporte-devops': {
         'backend_cmd':     f'"{_PY}" app.py',
@@ -267,15 +267,15 @@ def _stop_all() -> None:
 
 atexit.register(_stop_all)
 
-# ── Sound Catch: router inline ────────────────────────────────────────────────
+# ── WS_A_TEXTO: router inline ─────────────────────────────────────────────────
 # Se importa aquí para que FastAPI lo monte directamente —
 # sin subprocess, sin puerto separado.
-_SC_BACKEND = APPS_ROOT / 'Sound Catch' / 'web' / 'backend'
+_SC_BACKEND = BASE_DIR / 'WS_A_TEXTO' / 'web' / 'backend'
 
 if str(_SC_BACKEND) not in sys.path:
     sys.path.insert(0, str(_SC_BACKEND))
-if str(APPS_ROOT / 'Sound Catch') not in sys.path:
-    sys.path.insert(0, str(APPS_ROOT / 'Sound Catch'))
+if str(BASE_DIR / 'WS_A_TEXTO') not in sys.path:
+    sys.path.insert(0, str(BASE_DIR / 'WS_A_TEXTO'))
 
 try:
     from router import router as _sc_router        # noqa: E402
@@ -307,12 +307,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Montar Sound Catch inline bajo /api/sound-catch/
+# Montar WS_A_TEXTO inline bajo /api/sound-catch/
 if _SC_ROUTER_OK:
     # Prefijo /api/sound-catch/api para que coincida con los fetch del frontend:
     # client.ts llama ${API}/api/health → /api/sound-catch/api/health
     app.include_router(_sc_router, prefix='/api/sound-catch/api')
-    print("  [sound-catch] router montado en /api/sound-catch/api/ [OK]")
+    print("  [ws-a-texto] router montado en /api/sound-catch/api/ [OK]")
 
 # ── Endpoints del gateway (compatibles con el launcher antiguo) ───────────────
 

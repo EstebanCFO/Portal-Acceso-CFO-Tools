@@ -16,15 +16,22 @@ describe('APP_REGISTRY — estructura', () => {
   })
 
   it('cada app tiene todos los campos requeridos', () => {
+    // Campos que deben existir Y ser truthy (no vacíos)
     const required: (keyof App)[] = [
       'id', 'name', 'description', 'icon',
       'url', 'type', 'iconBg', 'iconColor',
-      'tags', 'status', 'category',
+      'tags', 'status',
     ]
+    // Campos que deben existir pero pueden ser string vacío (p.ej. category opcional)
+    const present: (keyof App)[] = ['category']
+
     for (const app of APP_REGISTRY) {
       for (const field of required) {
         expect(app, `App "${app.id}" falta campo "${field}"`).toHaveProperty(field)
         expect(app[field], `App "${app.id}" campo "${field}" está vacío`).toBeTruthy()
+      }
+      for (const field of present) {
+        expect(app, `App "${app.id}" falta campo "${field}"`).toHaveProperty(field)
       }
     }
   })
@@ -162,13 +169,14 @@ describe('invariantes de negocio', () => {
     expect(app?.type).toBe('iframe')
   })
 
-  it('sound-catch existe, está servido inline por el gateway y está activa', () => {
+  it('wa-a-texto (sound-catch) existe, está servido inline por el gateway y está activa', () => {
     const app = getApp('sound-catch')
     expect(app).toBeDefined()
+    expect(app?.name).toBe('WA a Texto')
     // URL relativa del gateway unificado (ya no usa puerto :5009 separado)
     expect(app?.url).toBe('/apps/sound-catch/')
     expect(app?.status).toBe('active')
     expect(app?.type).toBe('iframe')
-    expect(app?.category).toBe('Productividad')
+    expect(app?.category).toBe('')
   })
 })

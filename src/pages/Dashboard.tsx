@@ -54,7 +54,7 @@ const Dashboard: FC<Props> = ({ onSelectApp }) => {
               </div>
               <div className="app-card-info">
                 <div className="app-card-name">{app.name}</div>
-                <div className="app-card-category">{app.category}</div>
+                {app.category && <div className="app-card-category">{app.category}</div>}
               </div>
             </div>
 

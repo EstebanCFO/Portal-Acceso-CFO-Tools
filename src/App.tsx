@@ -21,7 +21,7 @@ const ALLOWED_APP_ORIGINS = [
   `http://${_H}:5173`,           // Bandas Salariales frontend (Vite dev)
   `http://${_H}:5003`,           // Job Matcher frontend (Vite dev)
   `http://${_H}:5176`,           // Survey Analytics frontend (Vite dev)
-  `http://${_H}:5009`,           // Sound Catch frontend (Vite dev)
+  `http://${_H}:5009`,           // WS_A_TEXTO frontend (Vite dev)
 ]
 
 const LAUNCHER = `http://${_H}:${_LP}`

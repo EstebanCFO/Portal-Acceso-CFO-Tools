@@ -65,6 +65,14 @@ Portal de Acceso\
 │   ├── start.bat / stop.bat
 │   └── CLAUDE.md
 │
+├── WS_A_TEXTO\                    ← App WS a Texto (FastAPI inline + React Vite :5009)
+│   ├── web\
+│   │   ├── backend\               ← router.py FastAPI — montado inline en el gateway
+│   │   └── frontend\              ← React 19 + Vite :5009 → /apps/sound-catch/
+│   ├── sound_catch\               ← módulo Python de transcripción (Whisper)
+│   ├── START.bat / STOP.bat
+│   └── CLAUDE.md
+│
 └── src\
     ├── main.tsx
     ├── index.css                  ← variables DS + todas las clases del portal
@@ -484,9 +492,9 @@ APPS: dict[str, dict] = {
     # Backend: router FastAPI montado inline (sin subprocess ni puerto extra)
     'backend_inline':  True,
     'frontend_cmd':    'npm run dev',
-    'frontend_dir':    APPS_ROOT / 'Sound Catch' / 'web' / 'frontend',
+    'frontend_dir':    BASE_DIR / 'WS_A_TEXTO' / 'web' / 'frontend',
     'frontend_port':   5009,
-    'frontend_dist':   APPS_ROOT / 'Sound Catch' / 'web' / 'frontend' / 'dist',
+    'frontend_dist':   BASE_DIR / 'WS_A_TEXTO' / 'web' / 'frontend' / 'dist',
   },
   'reporte-devops': {
     'backend_cmd':     '"python" app.py',      'backend_dir':     BASE_DIR / 'REPORTE_DEV_OPS' / 'backend',
@@ -538,14 +546,13 @@ C:\Esteban CFOTech\Portal de Acceso\          ← repo git principal
 │   ├── backend\             ← API pura (FASE 3: express.static removido)
 │   └── frontend\            ← React 19 + Vite :5003 (migrado en FASE 3)
 ├── SURVEY\                  ← ASP.NET Core :5055 + React/Vite :5176 → /apps/survey/
+├── WS_A_TEXTO\              ← App WS a Texto — FastAPI/Whisper inline + React/Vite :5009 → /apps/sound-catch/
+│   ├── web\
+│   │   ├── backend\         ← router.py FastAPI montado INLINE en el gateway (sin subprocess)
+│   │   └── frontend\        ← React 19 + Vite :5009
+│   └── sound_catch\         ← módulo Python de transcripción (Whisper)
 ├── portal-launcher\         ← Flask :4999 (launcher legacy) + launcher_ui.py
 └── src\                     ← Portal shell React 19 + Vite 8 (build → dist/)
-
-C:\Esteban CFOTech\Sound Catch\               ← repo separado (fuera del portal git)
-└── web\
-    ├── backend\             ← FastAPI/Whisper — router.py montado INLINE en el gateway
-    │                           (sin subprocess, sin puerto extra en prod)
-    └── frontend\            ← React 19 + Vite :5009 → /apps/sound-catch/
 ```
 
 | Componente | Puerto(s) | Stack | URL en gateway |
@@ -556,7 +563,7 @@ C:\Esteban CFOTech\Sound Catch\               ← repo separado (fuera del porta
 | Bandas Salariales | `:5173` front / `:5050` API | React 19 + Vite 8 + CSS DS / ASP.NET Core | `/apps/bandas-salariales/` |
 | Job Matcher + JD Generator | `:5003` front / `:5002` API | React 19 + Vite 8 / Node.js + Express | `/apps/job-matcher/` |
 | Survey Analytics | `:5176` front / `:5055` API | React 19 + Vite 8 / ASP.NET Core 8 | `/apps/survey/` |
-| **Sound Catch** | `:5009` front / inline API | React 19 + Vite 8 / FastAPI inline en gateway | `/apps/sound-catch/` |
+| **WS a Texto** | `:5009` front / inline API | React 19 + Vite 8 / FastAPI inline en gateway | `/apps/sound-catch/` |
 | Portal Launcher | `:4999` | Flask | legacy — `launcher_ui.py` ya no lo usa |
 
 ### Gateway routes (`portal_server.py`)
@@ -564,7 +571,7 @@ C:\Esteban CFOTech\Sound Catch\               ← repo separado (fuera del porta
 | Ruta | Comportamiento |
 |------|---------------|
 | `/apps/{app_id}/{path}` | Dev: proxy al Vite dev server de la app. Prod: sirve `{APP_DIR}/dist/` con `Cache-Control` apropiado |
-| `/api/sound-catch/api/{path}` | Router FastAPI de Sound Catch montado inline (`include_router`) — sin subprocess |
+| `/api/sound-catch/api/{path}` | Router FastAPI de WS_A_TEXTO montado inline (`include_router`) — sin subprocess |
 | `/api/{app_id}/{path}` | Proxy al backend de la app (Flask/dotnet/Node) |
 | `/api/health` | Health check del gateway |
 | `/api/shutdown-portal` | Detiene todos los subprocesos + apaga uvicorn con `os._exit(0)` tras 600ms |
@@ -691,7 +698,7 @@ Tokens clave:
 | Launcher en `0.0.0.0` | Permite acceso desde red sin cambiar código — solo config en `.env`. |
 | Health checks en `localhost` dentro del launcher | El launcher verifica sus propios procesos locales; `APP_HOST` es solo para el browser externo. |
 | `AUTOSTART_APPS=false` por defecto | En desarrollo lanzar todo al inicio ralentiza el arranque. En servidor se activa explícitamente. |
-| Backend inline (Sound Catch) | El router FastAPI de Sound Catch se monta dentro del gateway (`app.include_router(router, prefix='/api/sound-catch/api')`). Elimina un subprocess y un puerto extra. Válido cuando el backend es Python/FastAPI y puede importarse como módulo. |
+| Backend inline (WS_A_TEXTO) | El router FastAPI de WS_A_TEXTO se monta dentro del gateway (`app.include_router(router, prefix='/api/sound-catch/api')`). Elimina un subprocess y un puerto extra. Válido cuando el backend es Python/FastAPI y puede importarse como módulo. |
 | `??` vs `||` en env vars de cliente | `VITE_API_URL=` en `.env` produce `""` en el bundle. `"" ?? fallback` = `""` (bug). `"" \|\| fallback` = fallback (fix). Usar siempre `\|\|` para valores que pueden ser string vacío. |
 | `Cache-Control: no-cache` en index.html | Evita que el browser sirva el HTML obsoleto tras un rebuild. Los assets con hash son inmutables y se cachean 1 año. Elimina la necesidad de Ctrl+Shift+R después de actualizar. |
 | Limpieza de caché en startup | `launcher_ui.py` borra `__pycache__` y `node_modules/.vite/` antes de arrancar el gateway — garantiza código fresco sin mantenimiento manual. |
@@ -718,8 +725,9 @@ Tokens clave:
 | 2026-06-12 | **RDO orgs dinámicas + Consultar:** Reporte DevOps — `/api/organizaciones` consulta Azure DevOps en tiempo real (perfil PAT → cuentas). Fallback a `AZURE_DEVOPS_ORGS` en `.env`. Orgs se cargan automáticamente al activarse la app (`loadingOrgs=true` al montar). `/api/organizaciones/refresh` eliminado. Botón **[Consultar]** a la derecha del dropdown de Proyectos (reemplaza auto-load al seleccionar). `apiOrgsRefresh` eliminado de `client.ts`. RDO tests: **42/42** (−1). |
 | 2026-06-12 | **RDO sprint cards:** Nuevo endpoint `GET /api/sprints/<org>/<proyecto>` → `SprintsResult { current, anterior, futuros }`. Helpers: `ESTADOS_CERRADOS`, `_wiql_post` (charset UTF-8, sin `[System.TeamProject]`), `get_resumen_sprint`, `get_tc_ids_por_iteracion`, `get_testplan_progress` (paginación `x-ms-continuationtoken`). Frontend: componente `SprintCard` + 3 tarjetas (Sprint Actual verde, Sprint Anterior naranja, Sprints Futuros). Nuevas interfaces TS: `WorkItemsResumen`, `TestPlanProgress`, `SprintData`, `SprintsResult`. `apiSprints()` en client.ts. Historial siempre visible; logs expandibles. Total ecosistema: **343 tests** (111+42+57+96+37). |
 | 2026-06-16 | **Gateway + fix iframe:** `portal_server.py` (FastAPI/uvicorn) punto de entrada unificado en `:5174`. Apps servidas en `/apps/{id}/`. Fix bug crítico: `vite.config.js` en Bandas Salariales (sin `base`) overrideaba `vite.config.ts` con prioridad en resolución Vite — assets sin prefijo → gateway servía `index.html` del portal para los JS → `<script type="module">` rechazado por MIME → app no cargaba. Fix: eliminado `vite.config.js`, rebuild Bandas `dist/`. `AppFrame.tsx`: `isGatewayUrl = app.url.startsWith('/apps/')` para preflight same-origin sin `no-cors` y detección correcta de 503. `launcher_ui.py`: `_startup_sequence` reescrito para arrancar `portal_server.py` directamente y esperar `/api/health` (hasta 45s). 5 assertions RDO `client.test.ts` actualizadas a rutas `/api/reporte-devops/...`. **Total: 377/377 tests** (Portal 127 · Bandas 114 · RDO 42 · JM 57 · Survey 37). |
-| 2026-06-19 | **Sound Catch integrado:** App de transcripción de audio multi-formato con IA (Whisper). Backend FastAPI montado **inline** en el gateway (`include_router` en `/api/sound-catch/api/`). Frontend React 19 + Vite :5009. `VITE_API_URL=` (vacío) + `??` causaba fetch a `/api/info` (sin prefijo) → 404. Fix: `\|\|` en client.ts. Proxy vite.config.ts corregido. `client.test.ts` (11 tests). `sound-catch` en `APP_REGISTRY` con `url: '/apps/sound-catch/'`. `ALLOWED_APP_ORIGINS` actualizado con `:5009`. |
-| 2026-06-19 | **Fix bugs de usuario (6):** (1) Sound Catch — ver entrada anterior. (2) Survey "JSON inválido" → ASP.NET Core `UseResponseCompression` enviaba Brotli; `portal_server.py` excluye `accept-encoding` de headers reenviados — el gateway descomprime por su cuenta. (3) JM "JSON inválido" en upload → Node.js `compression()` middleware; mismo fix del gateway. (4) Bandas "no carga front" → `BrowserRouter` sin `basename`; Fix: `basename="/apps/bandas-salariales"`. (5) RDO — timing issue, sin cambio de código. (6) Pantalla de carga baja calidad en 4K → `windll.shcore.SetProcessDpiAwareness(2)` + fallback. Nuevos tests: `JM/client.test.ts` (24) + `Survey/client.test.ts` (25). **Total: 426/426 tests** (Portal 127 · Bandas 114 · RDO 42 · JM 81 · Survey 62). |
+| 2026-06-19 | **WS_A_TEXTO integrado (ex Sound Catch):** App de transcripción de audio multi-formato con IA (Whisper). Backend FastAPI montado **inline** en el gateway (`include_router` en `/api/sound-catch/api/`). Frontend React 19 + Vite :5009. `VITE_API_URL=` (vacío) + `??` causaba fetch a `/api/info` (sin prefijo) → 404. Fix: `\|\|` en client.ts. Proxy vite.config.ts corregido. `client.test.ts` (11 tests). `sound-catch` en `APP_REGISTRY` con `url: '/apps/sound-catch/'`. `ALLOWED_APP_ORIGINS` actualizado con `:5009`. |
+| 2026-06-19 | **Fix bugs de usuario (6):** (1) WS_A_TEXTO — ver entrada anterior. (2) Survey "JSON inválido" → ASP.NET Core `UseResponseCompression` enviaba Brotli; `portal_server.py` excluye `accept-encoding` de headers reenviados — el gateway descomprime por su cuenta. (3) JM "JSON inválido" en upload → Node.js `compression()` middleware; mismo fix del gateway. (4) Bandas "no carga front" → `BrowserRouter` sin `basename`; Fix: `basename="/apps/bandas-salariales"`. (5) RDO — timing issue, sin cambio de código. (6) Pantalla de carga baja calidad en 4K → `windll.shcore.SetProcessDpiAwareness(2)` + fallback. Nuevos tests: `JM/client.test.ts` (24) + `Survey/client.test.ts` (25). **Total: 426/426 tests** (Portal 127 · Bandas 114 · RDO 42 · JM 81 · Survey 62). |
 | 2026-06-19 | **UX: cards y botón Salir.** (1) Cards del Dashboard ya no abren la app al hacer click — solo el botón **Abrir →** abre. Eliminada clase `.app-card.clickable` de CSS. (2) Botón **Salir** del portal cierra todo: llama `/api/shutdown-portal` (detiene todos los subprocesos + `os._exit(0)` en el gateway) y luego `window.close()`. Eliminada función `stopAll()` de `App.tsx` (era huérfana). +1 test en `components.test.tsx`. `dist/` reconstruido. **Total: 128/128 tests**. |
 | 2026-06-19 | **Cache HTTP + limpieza en startup.** `portal_server.py`: `index.html` se sirve con `Cache-Control: no-cache, no-store, must-revalidate` (portal y todas las apps) — el browser siempre re-valida sin necesitar Ctrl+Shift+R. Assets en `assets/` con hash de contenido: `Cache-Control: public, max-age=31536000, immutable`. `launcher_ui.py`: paso nuevo "Limpiando caché…" (#2 en secuencia) — borra `__pycache__/` en raíz + `portal-launcher/` y `node_modules/.vite/` antes de iniciar el gateway. `START_UNIFIED.bat` + `requirements_gateway.txt` committed. **Total: 128/128 tests** (Portal 128 · Bandas 114 · RDO 42 · JM 81 · Survey 62 = **427 total**). |
-| 2026-06-19 | **Fix bugs de usuario (4):** (1) **JM timeout**: httpx read timeout 60s → 300s para soportar Claude API (2-5 min). Nuevo `except httpx.TimeoutException` → HTTP 504. +3 tests en `JM/client.test.ts`. (2) **Survey no inicia**: `dist/assets/` estaba vacío por build fallido — causa raíz: `client.test.ts` usaba `.at(-1)` que requiere ES2022, pero `tsconfig.app.json` tenía `target: ES2020`. Fix: `target + lib → ES2022`. Rebuild exitoso (4 chunks). (3) **Sound Catch no disponible**: `dist/` no existía — jamás se había construido. Primer build del frontend Sound Catch. `VITE_API_URL=` (vacío) → bundle usa `/api/sound-catch` (gateway path). (4) **Salir del portal no funciona**: `window.close()` bloqueado por browsers cuando la tab no fue abierta con `window.open()`. Fix: reemplazar `shutdown-portal + window.close()` con `stop-all + overlay React` ("Sesión finalizada" + "← Volver al portal"). +2 tests en `components.test.tsx`. **Total: 433/433 tests** (Portal 129 · Bandas 116 · RDO 42 · JM 84 · Survey 62). |
+| 2026-06-19 | **Fix bugs de usuario (4):** (1) **JM timeout**: httpx read timeout 60s → 300s para soportar Claude API (2-5 min). Nuevo `except httpx.TimeoutException` → HTTP 504. +3 tests en `JM/client.test.ts`. (2) **Survey no inicia**: `dist/assets/` estaba vacío por build fallido — causa raíz: `client.test.ts` usaba `.at(-1)` que requiere ES2022, pero `tsconfig.app.json` tenía `target: ES2020`. Fix: `target + lib → ES2022`. Rebuild exitoso (4 chunks). (3) **WS_A_TEXTO no disponible**: `dist/` no existía — jamás se había construido. Primer build del frontend. `VITE_API_URL=` (vacío) → bundle usa `/api/sound-catch` (gateway path). (4) **Salir del portal no funciona**: `window.close()` bloqueado por browsers cuando la tab no fue abierta con `window.open()`. Fix: reemplazar `shutdown-portal + window.close()` con `stop-all + overlay React` ("Sesión finalizada" + "← Volver al portal"). +2 tests en `components.test.tsx`. **Total: 433/433 tests** (Portal 129 · Bandas 116 · RDO 42 · JM 84 · Survey 62). |
+| 2026-06-25 | **Rename Sound Catch → WS_A_TEXTO:** Carpeta renombrada de `C:\Esteban CFOTech\Sound Catch\` (repo separado) a `WS_A_TEXTO\` (dentro del repo del portal). Rutas en `portal_server.py` actualizadas: `APPS_ROOT / 'Sound Catch'` → `BASE_DIR / 'WS_A_TEXTO'`. Nombre en registry: `'Sound Catch'` → `'WS a Texto'`. Tag `WhatsApp` añadido. `sys.path` del router inline actualizado. Comentarios y CLAUDE.md actualizados. **129/129 tests**. |
