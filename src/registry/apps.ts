@@ -73,7 +73,7 @@ export const APP_REGISTRY: App[] = [
   },
   {
     id:          'sound-catch',
-    name:        'WA a Texto',
+    name:        'Audio a Texto',
     description: 'Transcripcion de audio multi-formato con IA — WAV, OGG, MP3, WhatsApp PTT y mas',
     icon:        '🎙',
     // Servido desde el gateway unificado — sin puerto separado, sin delay.

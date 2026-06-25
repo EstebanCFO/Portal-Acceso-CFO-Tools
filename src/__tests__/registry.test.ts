@@ -169,10 +169,10 @@ describe('invariantes de negocio', () => {
     expect(app?.type).toBe('iframe')
   })
 
-  it('wa-a-texto (sound-catch) existe, está servido inline por el gateway y está activa', () => {
+  it('audio-a-texto (sound-catch) existe, está servido inline por el gateway y está activa', () => {
     const app = getApp('sound-catch')
     expect(app).toBeDefined()
-    expect(app?.name).toBe('WA a Texto')
+    expect(app?.name).toBe('Audio a Texto')
     // URL relativa del gateway unificado (ya no usa puerto :5009 separado)
     expect(app?.url).toBe('/apps/sound-catch/')
     expect(app?.status).toBe('active')

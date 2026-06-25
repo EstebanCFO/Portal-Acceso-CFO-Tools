@@ -11,7 +11,7 @@
 ```typescript
 {
   id:          'sound-catch',          // ID estable — URL del gateway no cambia
-  name:        'WA a Texto',
+  name:        'Audio a Texto',
   description: 'Transcripcion de audio multi-formato con IA — WAV, OGG, MP3 y mas',
   icon:        '🎙',
   url:         '/apps/sound-catch/',   // gateway same-origin
@@ -54,10 +54,10 @@
 ### `src/__tests__/registry.test.ts`
 
 ```typescript
-it('wa-a-texto (sound-catch) existe, name es WA a Texto y category puede ser vacío', () => {
+it('audio-a-texto (sound-catch) existe, name es Audio a Texto y category puede ser vacío', () => {
   const app = APP_REGISTRY.find(a => a.id === 'sound-catch')
   expect(app).toBeDefined()
-  expect(app?.name).toBe('WA a Texto')
+  expect(app?.name).toBe('Audio a Texto')
   expect(app?.url).toBe('/apps/sound-catch/')
   expect(app?.category).toBe('')
 })
@@ -71,6 +71,6 @@ it('wa-a-texto (sound-catch) existe, name es WA a Texto y category puede ser vac
 |-------|--------|
 | 2026-06-19 | Integración inicial: Sound Catch. Backend inline, frontend Vite :5009. URL `http://${_H}:5009`. |
 | 2026-06-25 | Carpeta renombrada de `Sound Catch` (repo separado, `APPS_ROOT`) → `WS_A_TEXTO` (dentro del portal, `BASE_DIR`). |
-| 2026-06-25 | Nombre en registry: `'Sound Catch'` → `'WS a Texto'` → `'WA a Texto'`. `category: 'Productividad'` → `''`. Tags: añadido `'WhatsApp'`. |
+| 2026-06-25 | Nombre en registry: `'Sound Catch'` → `'WS a Texto'` → `'WA a Texto'` → `'Audio a Texto'`. `category: 'Productividad'` → `''`. Tags: añadido `'WhatsApp'`. |
 | 2026-06-25 | URL cambiada a gateway same-origin: `http://${_H}:5009` → `'/apps/sound-catch/'`. |
 | 2026-06-25 | Header.tsx: `IN_PORTAL=true` → `return null` (el portal provee "← Volver"). |

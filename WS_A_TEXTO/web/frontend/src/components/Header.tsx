@@ -21,9 +21,9 @@ export function Header() {
   return (
     <header className="sc-header">
       <div className="sc-header__brand">
-        <div className="sc-logo">WA</div>
+        <div className="sc-logo">🎙</div>
         <div className="sc-header__title">
-          <span className="sc-header__name">WA a Texto</span>
+          <span className="sc-header__name">Audio a Texto</span>
           <span className="sc-header__sub">Transcripcion de Audio</span>
         </div>
       </div>
