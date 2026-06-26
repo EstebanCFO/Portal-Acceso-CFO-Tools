@@ -24,6 +24,6 @@ app.add_middleware(
 app.include_router(router)
 
 if __name__ == '__main__':
-    print(f'Proyectos Activos API → http://localhost:{PORT}')
-    print(f'Docs → http://localhost:{PORT}/docs')
+    print(f'Proyectos Activos API  http://localhost:{PORT}')
+    print(f'Docs                   http://localhost:{PORT}/docs')
     uvicorn.run('app:app', host='0.0.0.0', port=PORT, reload=True)
