@@ -218,7 +218,15 @@ def get_ejercicio_economico(
     project_id: int,
     period_date: date,
 ) -> Optional[schemas.EjercicioEconomicoOut]:
-    """Retorna el ejercicio económico completo de un proyecto en un período."""
+    """
+    Retorna el ejercicio económico completo de un proyecto.
+
+    `period_date` es el período del semáforo (fuente: semaforo_monthly_metrics).
+    Los datos de recursos/financiero pueden estar en un período distinto —
+    el ETL lee cada tabla de una hoja diferente del Excel con su propia fecha.
+    Si no hay datos para `period_date`, se usa el período disponible más reciente
+    para ese proyecto en resource_monthly_costs (fallback automático).
+    """
 
     # Proyecto + cliente
     proj_row = db.execute(
@@ -232,7 +240,26 @@ def get_ejercicio_economico(
 
     referencia = get_semaforo_referencia(db)
 
-    # Recursos del período
+    # ── Determinar el período de datos reales (puede diferir del semáforo) ──
+    # 1. Buscar en resource_monthly_costs: período exacto primero, luego el más reciente
+    data_period = db.execute(
+        select(ResourceMonthlyCost.period_date)
+        .where(ResourceMonthlyCost.project_id == project_id,
+               ResourceMonthlyCost.period_date == period_date)
+        .limit(1)
+    ).scalar_one_or_none()
+
+    if data_period is None:
+        # Fallback: tomar el período más reciente disponible para este proyecto
+        data_period = db.execute(
+            select(func.max(ResourceMonthlyCost.period_date))
+            .where(ResourceMonthlyCost.project_id == project_id)
+        ).scalar_one_or_none()
+
+    # Usar el período real encontrado (o el pedido si no hay recursos)
+    effective_period = data_period if data_period is not None else period_date
+
+    # Recursos del período efectivo
     recursos_q = (
         select(ResourceMonthlyCost, Employee, Role, ContractType, CostCenter)
         .join(Employee,     Employee.dni         == ResourceMonthlyCost.employee_dni)
@@ -241,7 +268,7 @@ def get_ejercicio_economico(
         .join(CostCenter,   CostCenter.code_ceco == ResourceMonthlyCost.code_ceco)
         .where(
             ResourceMonthlyCost.project_id  == project_id,
-            ResourceMonthlyCost.period_date == period_date,
+            ResourceMonthlyCost.period_date == effective_period,
         )
         .order_by(ResourceMonthlyCost.total_monthly_cost.desc())
     )
@@ -269,13 +296,22 @@ def get_ejercicio_economico(
         total_horas += rmc.total_hours or Decimal(0)
         costo_total += rmc.total_monthly_cost or Decimal(0)
 
-    # Financiero del período
+    # Financiero — usa el mismo período efectivo que los recursos
     fin = db.execute(
         select(ProjectFinancial).where(
             ProjectFinancial.project_id  == project_id,
-            ProjectFinancial.period_date == period_date,
+            ProjectFinancial.period_date == effective_period,
         )
     ).scalar_one_or_none()
+
+    # Si tampoco hay financials en el período efectivo, buscar el más reciente
+    if fin is None:
+        fin = db.execute(
+            select(ProjectFinancial)
+            .where(ProjectFinancial.project_id == project_id)
+            .order_by(ProjectFinancial.period_date.desc())
+            .limit(1)
+        ).scalar_one_or_none()
 
     financials_out = None
     if fin:
@@ -322,7 +358,8 @@ def get_ejercicio_economico(
         client_name           = client.name,
         sheet_name            = project.sheet_name,
         tipo                  = project.tipo,
-        period_date           = str(period_date),
+        period_date           = str(effective_period),   # período real de los datos
+        semaforo_period_date  = str(period_date),        # período del semáforo (puede diferir)
         recursos              = recursos_out,
         financials            = financials_out,
         history               = history_out,

@@ -92,18 +92,19 @@ export interface HistoryRow {
 }
 
 export interface EjercicioEconomico {
-  project_id:           number
-  project_name:         string
-  client_name:          string
-  sheet_name:           string
-  tipo:                 string
-  period_date:          string
-  recursos:             Recurso[]
-  financials:           Financial | null
-  history:              HistoryRow[]
-  total_recursos:       number
-  total_horas:          number
-  costo_total_recursos: number
+  project_id:              number
+  project_name:            string
+  client_name:             string
+  sheet_name:              string
+  tipo:                    string
+  period_date:             string   // período real de los datos (recursos/financiero)
+  semaforo_period_date?:   string   // período del semáforo (puede diferir)
+  recursos:                Recurso[]
+  financials:              Financial | null
+  history:                 HistoryRow[]
+  total_recursos:          number
+  total_horas:             number
+  costo_total_recursos:    number
 }
 
 export interface ProjectListItem {

@@ -129,7 +129,8 @@ class EjercicioEconomicoOut(BaseModel):
     client_name:  str
     sheet_name:   str
     tipo:         str
-    period_date:  str
+    period_date:  str   # período real de los datos (recursos/financiero)
+    semaforo_period_date: Optional[str] = None  # período del semáforo (puede diferir)
 
     recursos:     List[RecursoOut]
     financials:   Optional[FinancialOut]

@@ -343,6 +343,18 @@ body {
   gap: 6px;
 }
 
+/* Aviso de período de datos vs. período del semáforo */
+.pa-period-notice {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--gray1);
+  border: 1px solid var(--gray2);
+  border-radius: 20px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
 /* ── Financial summary card ──────────────────────────────────────────────── */
 .pa-fin-grid {
   display: grid;

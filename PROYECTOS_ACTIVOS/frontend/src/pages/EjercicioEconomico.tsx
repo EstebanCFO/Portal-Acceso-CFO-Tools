@@ -58,7 +58,13 @@ export default function EjercicioEconomico({ projectId, period, projectName, cli
   }, [projectId, period])
 
   const displayName = projectName || `Proyecto #${projectId}`
-  const periodLabel = fmt.period(period)
+  // Usar el período real de los datos si ya cargó, si no el pedido
+  const actualPeriod = data?.period_date ?? period
+  const periodLabel  = fmt.period(actualPeriod)
+  // Mostrar aviso si el período de datos difiere del período del semáforo
+  const periodsDiffer = data != null &&
+    data.semaforo_period_date != null &&
+    data.period_date !== data.semaforo_period_date
 
   // Histórico solo de meses (no acumulado) para el gráfico
   const chartData: HistoryRow[] = data?.history.filter(h => !h.is_cumulative) ?? []
@@ -99,6 +105,11 @@ export default function EjercicioEconomico({ projectId, period, projectName, cli
           <span style={{ color: 'var(--gray3)' }}>·</span>
           {periodLabel}
         </span>
+        {periodsDiffer && (
+          <span className="pa-period-notice">
+            📅 Datos al {periodLabel} · Semáforo {fmt.period(data!.semaforo_period_date!)}
+          </span>
+        )}
       </div>
 
       {/* Body */}
