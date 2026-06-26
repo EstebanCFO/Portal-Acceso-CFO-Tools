@@ -26,4 +26,7 @@ app.include_router(router)
 if __name__ == '__main__':
     print(f'Proyectos Activos API  http://localhost:{PORT}')
     print(f'Docs                   http://localhost:{PORT}/docs')
-    uvicorn.run('app:app', host='0.0.0.0', port=PORT, reload=True)
+    # reload=False: el gateway (portal_server.py) gestiona el lifecycle del proceso.
+    # reload=True genera un worker multiprocessing que puede sobrevivir con código
+    # stale si el padre (reloader) muere antes de detectar cambios en los archivos.
+    uvicorn.run('app:app', host='0.0.0.0', port=PORT, reload=False)

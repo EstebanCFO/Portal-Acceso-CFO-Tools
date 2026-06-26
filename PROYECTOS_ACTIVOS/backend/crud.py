@@ -24,11 +24,30 @@ MESES_ES = {
 
 # ── Períodos ──────────────────────────────────────────────────────────────────
 
+_CREATE_INGEST_UPLOADS = text("""
+    CREATE TABLE IF NOT EXISTS ingest_uploads (
+        id          SERIAL    PRIMARY KEY,
+        period_date DATE      NOT NULL,
+        uploaded_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+""")
+
+
 def get_periodos(db: Session) -> List[schemas.PeriodoOut]:
     """
     Retorna períodos disponibles. Preferencia: ingest_uploads (con timestamp).
-    Fallback: distinct period_dates de project_financials (instalaciones sin historial).
+    Fallback: distinct period_dates de semaforo_monthly_metrics (donde viven
+    los datos reales del semáforo — no project_financials que puede tener
+    períodos distintos).
     """
+    # Crear tabla si no existe aún (migración lazy, idempotente)
+    try:
+        db.execute(_CREATE_INGEST_UPLOADS)
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    # 1. ingest_uploads (tiene timestamps de cada carga)
     try:
         rows = db.execute(text(
             "SELECT period_date, uploaded_at FROM ingest_uploads ORDER BY uploaded_at DESC"
@@ -45,14 +64,14 @@ def get_periodos(db: Session) -> List[schemas.PeriodoOut]:
                 )
                 for row in rows
             ]
-    except (ProgrammingError, Exception):
+    except Exception:
         db.rollback()
 
-    # Fallback: project_financials (sin timestamp)
+    # 2. Fallback: semaforo_monthly_metrics (la fuente canónica del semáforo)
     rows_fb = db.execute(
-        select(ProjectFinancial.period_date)
+        select(SemaforoMonthlyMetric.period_date)
         .distinct()
-        .order_by(ProjectFinancial.period_date.desc())
+        .order_by(SemaforoMonthlyMetric.period_date.desc())
     ).scalars().all()
     return [
         schemas.PeriodoOut(
