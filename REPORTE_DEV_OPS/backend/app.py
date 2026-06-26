@@ -6,6 +6,7 @@ Puerto: 5000
 
 import os
 import json
+import time
 import socket
 import sqlite3
 import logging
@@ -13,6 +14,7 @@ import datetime
 import threading
 import subprocess
 import requests
+from requests.adapters import HTTPAdapter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from base64 import b64encode
 from urllib.parse import quote as urlquote
@@ -42,6 +44,43 @@ HDR = {
     'Content-Type': 'application/json',
 }
 
+# ── Opción 2: HTTP Session con connection pooling ────────────
+# Reutiliza conexiones TCP/TLS hacia dev.azure.com en vez de
+# abrir una nueva por cada llamada (ahorro ~20-30 % overall).
+_az_adapter = HTTPAdapter(pool_connections=4, pool_maxsize=16)
+SESSION = requests.Session()
+SESSION.headers.update(HDR)
+SESSION.mount('https://', _az_adapter)
+SESSION.mount('http://',  _az_adapter)
+
+# ── Opción 3: Caché en memoria con TTL ───────────────────────
+class _TTLCache:
+    """Caché thread-safe con expiración por clave (default 5 min)."""
+    def __init__(self, ttl: int = 300):
+        self._store: dict = {}
+        self._lock  = threading.Lock()
+        self.ttl    = ttl
+
+    def get(self, key: str):
+        with self._lock:
+            entry = self._store.get(key)
+            if entry and (time.monotonic() - entry['ts']) < self.ttl:
+                return entry['data']
+            return None
+
+    def put(self, key: str, data) -> None:
+        with self._lock:
+            self._store[key] = {'data': data, 'ts': time.monotonic()}
+
+    def invalidate(self, key: str | None = None) -> None:
+        with self._lock:
+            if key is None:
+                self._store.clear()
+            else:
+                self._store.pop(key, None)
+
+
+_sprint_cache = _TTLCache(ttl=300)   # 5 minutos
 
 # ── Logger ──────────────────────────────────────────────────
 def make_logger(name: str):
@@ -106,7 +145,7 @@ estado = {
 # ── Helpers Azure DevOps ────────────────────────────────────
 def az_get(url: str):
     try:
-        r = requests.get(url, headers=HDR, timeout=15)
+        r = SESSION.get(url, timeout=15)
         app_logger.debug(f'AZ GET {url} -> {r.status_code}')
         return r.json() if r.status_code == 200 else None
     except Exception as e:
@@ -116,7 +155,7 @@ def az_get(url: str):
 
 def az_post(url: str, body: dict):
     try:
-        r = requests.post(url, json=body, headers=HDR, timeout=15)
+        r = SESSION.post(url, json=body, timeout=15)
         app_logger.debug(f'AZ POST {url} -> {r.status_code}')
         return r.json() if r.status_code == 200 else None
     except Exception as e:
@@ -142,7 +181,7 @@ def _wiql_post(org: str, project_ref: str, query: str):
     hdr['Content-Type'] = 'application/json; charset=utf-8'
     body = json.dumps({'query': query}).encode('utf-8')
     try:
-        r = requests.post(url, data=body, headers=hdr, timeout=15)
+        r = SESSION.post(url, data=body, headers=hdr, timeout=15)
         app_logger.debug(f'WIQL {org}/{project_ref} -> {r.status_code}')
         return r.json() if r.status_code == 200 else None
     except Exception as e:
@@ -211,6 +250,50 @@ def get_tc_ids_por_iteracion(org: str, project_ref: str, iter_path: str) -> set:
     return ids
 
 
+def _fetch_suite_progress(
+    org: str, ref: str, plan_id: int, sid: int, tc_ids_iter: set
+) -> tuple:
+    """Opción 1 — helper para paralelizar suites.
+    Retorna (total_casos, corridos, pasados) para una suite."""
+    total_casos = corridos = pasados = 0
+    try:
+        tc_raw = az_get(
+            f'https://dev.azure.com/{org}/{ref}/_apis/testplan/Plans/{plan_id}'
+            f'/Suites/{sid}/TestCase?api-version=7.1'
+        )
+        casos = tc_raw.get('value', []) if tc_raw else []
+        if tc_ids_iter:
+            casos = [c for c in casos if int(c['workItem']['id']) in tc_ids_iter]
+        total_casos = len(casos)
+
+        cont_token = None
+        while True:
+            url_tp = (
+                f'https://dev.azure.com/{org}/{ref}/_apis/testplan/Plans/{plan_id}'
+                f'/Suites/{sid}/TestPoint?api-version=7.1&$top=100'
+            )
+            if cont_token:
+                url_tp += f'&continuationToken={cont_token}'
+            resp = SESSION.get(url_tp, timeout=10)
+            if resp.status_code != 200:
+                break
+            pt_data = resp.json()
+            for pt in pt_data.get('value', []):
+                if tc_ids_iter and int(pt['testCase']['id']) not in tc_ids_iter:
+                    continue
+                outcome = (pt.get('results') or {}).get('outcome', '')
+                if outcome and outcome != 'unspecified':
+                    corridos += 1
+                    if outcome == 'passed':
+                        pasados += 1
+            cont_token = resp.headers.get('x-ms-continuationtoken')
+            if not cont_token:
+                break
+    except Exception as e:
+        app_logger.warning(f'Suite {sid} progress error: {e}')
+    return total_casos, corridos, pasados
+
+
 def get_testplan_progress(
     org: str, project_ref: str, sprint_nombre: str, iter_path: str
 ) -> dict:
@@ -255,49 +338,19 @@ def get_testplan_progress(
         if not suites_raw:
             return resultado
 
+        # Opción 1 — suites en paralelo (antes: loop secuencial)
         total_casos = corridos = pasados = 0
-        hdr_get = {k: v for k, v in HDR.items() if k != 'Content-Type'}
-
-        for suite in suites_raw.get('value', []):
-            sid = suite['id']
-            try:
-                # Contar test cases de la suite
-                tc_raw = az_get(
-                    f'https://dev.azure.com/{org}/{ref}/_apis/testplan/Plans/{plan_id}'
-                    f'/Suites/{sid}/TestCase?api-version=7.1'
-                )
-                casos = tc_raw.get('value', []) if tc_raw else []
-                if tc_ids_iter:
-                    casos = [c for c in casos if int(c['workItem']['id']) in tc_ids_iter]
-                total_casos += len(casos)
-
-                # Test points con paginación
-                cont_token = None
-                while True:
-                    url_tp = (
-                        f'https://dev.azure.com/{org}/{ref}/_apis/testplan/Plans/{plan_id}'
-                        f'/Suites/{sid}/TestPoint?api-version=7.1&$top=100'
-                    )
-                    if cont_token:
-                        url_tp += f'&continuationToken={cont_token}'
-                    resp = requests.get(url_tp, headers=hdr_get, timeout=10)
-                    if resp.status_code != 200:
-                        break
-                    pt_data = resp.json()
-                    for pt in pt_data.get('value', []):
-                        if tc_ids_iter and int(pt['testCase']['id']) not in tc_ids_iter:
-                            continue
-                        outcome = (pt.get('results') or {}).get('outcome', '')
-                        if outcome and outcome != 'unspecified':
-                            corridos += 1
-                            if outcome == 'passed':
-                                pasados += 1
-                    cont_token = resp.headers.get('x-ms-continuationtoken')
-                    if not cont_token:
-                        break
-            except Exception as e:
-                app_logger.warning(f'Suite {sid} progress error: {e}')
-                continue
+        suites = suites_raw.get('value', [])
+        with ThreadPoolExecutor(max_workers=min(len(suites), 8) or 1) as ex:
+            futs = [
+                ex.submit(_fetch_suite_progress, org, ref, plan_id, s['id'], tc_ids_iter)
+                for s in suites
+            ]
+            for fut in as_completed(futs):
+                tc, co, pa = fut.result()
+                total_casos += tc
+                corridos    += co
+                pasados     += pa
 
         resultado['total']       = total_casos
         resultado['corridos']    = corridos
@@ -1017,11 +1070,21 @@ def get_projects_for_year(org_name: str, year: int):
 def get_sprint_report():
     """Reporte completo: sprint actual + anterior.
     Devuelve items (Task/Bug) con detalles completos + test plan progress.
-    Consulta los dos sprints en paralelo para reducir latencia."""
+    Consulta los dos sprints en paralelo para reducir latencia.
+    Resultado cacheado 5 min por clave org+project; ?refresh=1 fuerza recálculo."""
     org     = request.args.get('org',     '').strip()
     project = request.args.get('project', '').strip()
+    refresh = request.args.get('refresh', '0').strip() == '1'
     if not org or not project:
         return jsonify({'error': 'Faltan parámetros org y project'}), 400
+
+    # Opción 3 — cache TTL 5 min
+    cache_key = f'{org}|{project}'
+    if not refresh:
+        cached = _sprint_cache.get(cache_key)
+        if cached is not None:
+            app_logger.info(f'sprint-report cache HIT {org}/{project}')
+            return jsonify(cached)
 
     try:
         ref       = urlquote(project, safe='')
@@ -1073,11 +1136,13 @@ def get_sprint_report():
             f'current={current["name"] if current else "none"}, '
             f'anterior={anterior["name"] if anterior else "none"}'
         )
-        return jsonify({
+        result = {
             'firstSprintDate': first_sprint_dt,
             'current':         current_data,
             'anterior':        anterior_data,
-        })
+        }
+        _sprint_cache.put(cache_key, result)   # Opción 3 — guardar en cache
+        return jsonify(result)
 
     except Exception as e:
         app_logger.error(f'ERROR sprint-report: {e}', exc_info=True)

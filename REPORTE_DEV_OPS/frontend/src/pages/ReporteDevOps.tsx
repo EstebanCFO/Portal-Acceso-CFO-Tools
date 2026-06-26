@@ -580,14 +580,23 @@ export default function ReporteDevOps() {
   const [loadingOrgs,     setLoadingOrgs]     = useState(false)
   const [loadingProjects, setLoadingProjects] = useState(false)
 
-  // ── Carga de orgs al montar (desde tabla habilitadas — solo activas) ────────
-  useEffect(() => {
+  // ── Carga de orgs desde DB (solo activas) — reutilizable ───────────────────
+  const loadOrgs = () => {
     setLoadingOrgs(true)
     void apiOrgsActivas()
-      .then(setOrgs)
+      .then(data => {
+        setOrgs(data)
+        // Si la org seleccionada ya no está activa, limpiar la selección
+        if (orgSel && !data.some(o => o.nombre === orgSel)) {
+          setOrgSel('')
+        }
+      })
       .catch(console.error)
       .finally(() => setLoadingOrgs(false))
-  }, [])
+  }
+
+  // Carga inicial al montar
+  useEffect(() => { loadOrgs() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Cascada: org → proyectos ─────────────────────────────────────────────────
   useEffect(() => {
@@ -859,7 +868,12 @@ export default function ReporteDevOps() {
 
       {/* ── Modal Organizaciones Habilitadas ──────────────── */}
       {showOrgModal && (
-        <OrgHabilitadasModal onClose={() => setShowOrgModal(false)} />
+        <OrgHabilitadasModal
+          onClose={() => {
+            setShowOrgModal(false)
+            loadOrgs()   // refresca el combo con los cambios guardados
+          }}
+        />
       )}
     </div>
   )

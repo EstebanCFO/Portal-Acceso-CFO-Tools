@@ -257,6 +257,29 @@ button { font-family: inherit; }
 
 .btn-sm { padding: 4px 10px; font-size: 12px; }
 
+/* Botón Imprimir Reporte — acción secundaria destacada */
+.btn-print {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1.5px solid var(--navy);
+  background: #fff;
+  color: var(--navy);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  transition: background .12s, color .12s;
+}
+.btn-print:hover:not(:disabled) {
+  background: var(--navy);
+  color: #fff;
+}
+.btn-print:disabled { opacity: .40; cursor: default; }
+
 .btn-exit {
   background: none;
   color: rgba(255,255,255,.75);

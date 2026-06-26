@@ -7,6 +7,7 @@ import {
 import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent'
 import { getEmpleado, buscarEmpleados } from '../api/client'
 import { DS } from '../theme'
+import { efectivoEstado } from '../utils/estado'
 import type { EmpleadoDetalle, EmpleadoBusqueda } from '../types'
 
 const fmtAR = (v: number | null | undefined) =>
@@ -17,11 +18,12 @@ const fmtTooltip = (v: ValueType | undefined): string => {
   return '$ ' + Number(v).toLocaleString('es-AR', { maximumFractionDigits: 0 })
 }
 
-function EstadoBadge({ estado }: { estado: string | null | undefined }) {
-  if (!estado)              return <span className="badge badge-default">Sin banda</span>
-  if (estado === 'OK')      return <span className="badge badge-success">OK</span>
-  if (estado === 'REVISAR') return <span className="badge badge-warning">Revisar</span>
-  return <span className="badge badge-default">{estado}</span>
+function EstadoBadge({ estado, varPct }: { estado: string | null | undefined; varPct?: string | null }) {
+  const eff = efectivoEstado(estado, varPct)
+  if (!eff)              return <span className="badge badge-default">Sin banda</span>
+  if (eff === 'OK')      return <span className="badge badge-success">OK</span>
+  if (eff === 'REVISAR') return <span className="badge badge-warning">Revisar</span>
+  return <span className="badge badge-default">{eff}</span>
 }
 
 function VarPct({ v }: { v: string | null | undefined }) {
@@ -241,23 +243,26 @@ export default function Empleado() {
                         </tr>
                       </thead>
                       <tbody>
-                        {detalle.historial.map((h, i) => (
-                          <tr key={i} style={{
-                            background: h.estadoVsInf === 'OK'      ? 'rgba(0,135,90,.06)'
-                                      : h.estadoVsInf === 'REVISAR' ? 'rgba(201,106,0,.07)'
-                                      : undefined,
-                          }}>
-                            <td>{h.fechaCarga}</td>
-                            <td><strong>{h.periodo}</strong></td>
-                            <td><span className="fs-11 c-text2">{h.perfil}</span></td>
-                            <td><span className="badge badge-outline">{h.seniority ?? '—'}</span></td>
-                            <td className="right fw-600">{fmtAR(h.remuneracion)}</td>
-                            <td className="right"><span className="caption">{fmtAR(h.limInferior)}</span></td>
-                            <td className="right"><span className="caption">{fmtAR(h.limSuperior)}</span></td>
-                            <td><EstadoBadge estado={h.estadoVsInf} /></td>
-                            <td><VarPct v={h.varPct} /></td>
-                          </tr>
-                        ))}
+                        {detalle.historial.map((h, i) => {
+                          const eff = efectivoEstado(h.estadoVsInf, h.varPct)
+                          return (
+                            <tr key={i} style={{
+                              background: eff === 'OK'      ? 'rgba(0,135,90,.06)'
+                                        : eff === 'REVISAR' ? 'rgba(201,106,0,.07)'
+                                        : undefined,
+                            }}>
+                              <td>{h.fechaCarga}</td>
+                              <td><strong>{h.periodo}</strong></td>
+                              <td><span className="fs-11 c-text2">{h.perfil}</span></td>
+                              <td><span className="badge badge-outline">{h.seniority ?? '—'}</span></td>
+                              <td className="right fw-600">{fmtAR(h.remuneracion)}</td>
+                              <td className="right"><span className="caption">{fmtAR(h.limInferior)}</span></td>
+                              <td className="right"><span className="caption">{fmtAR(h.limSuperior)}</span></td>
+                              <td><EstadoBadge estado={h.estadoVsInf} varPct={h.varPct} /></td>
+                              <td><VarPct v={h.varPct} /></td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>

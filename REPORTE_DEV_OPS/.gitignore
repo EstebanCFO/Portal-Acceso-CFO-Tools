@@ -20,6 +20,7 @@ backend/output/
 backend/logs/
 backend/datos_raw.json
 backend/datos_procesados.json
+backend/devops.db
 
 # OS / IDE
 .DS_Store

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { getDashboard, getSnapshots, getEmpleados, deleteSnapshot } from '../api/client'
 import UploadModal from '../components/UploadModal'
 import { DS } from '../theme'
+import { efectivoEstado } from '../utils/estado'
 import type { DashboardKpis, ImportacionRow, BandaSalarial } from '../types'
 
 const fmtAR = (v: number | null | undefined) =>
@@ -58,18 +59,19 @@ export default function Dashboard() {
     const ORDEN = ['JR', 'SSR', 'SR']
     const map: Record<string, SeniorityBucket> = {}
     empleados.forEach(e => {
-      const s = e.seniority ?? 'N/D'
+      const s   = e.seniority ?? 'N/D'
+      const eff = efectivoEstado(e.estadoVsInf, e.varPct)
       if (!map[s]) map[s] = { seniority: s, total: 0, ok: 0, revisar: 0 }
       map[s].total++
-      if (e.estadoVsInf === 'OK')      map[s].ok++
-      if (e.estadoVsInf === 'REVISAR') map[s].revisar++
+      if (eff === 'OK')      map[s].ok++
+      if (eff === 'REVISAR') map[s].revisar++
     })
     return [...ORDEN, 'N/D'].filter(s => map[s]).map(s => map[s])
   }, [empleados])
 
   const brechaStats = useMemo(() => {
     const montos = empleados
-      .filter(e => e.estadoVsInf === 'REVISAR' && e.varMonto && e.varMonto !== 'EN BANDA')
+      .filter(e => efectivoEstado(e.estadoVsInf, e.varPct) === 'REVISAR' && e.varMonto && e.varMonto !== 'EN BANDA')
       .map(e => parseFloat(e.varMonto!))
       .filter(v => !isNaN(v))
     if (!montos.length) return null

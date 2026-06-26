@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { getSnapshots, getComparativo } from '../api/client'
 import { DS } from '../theme'
+import { snapshotLabel } from '../utils/snapshots'
 import type { ImportacionRow, ComparativoRow } from '../types'
 
 // ── SVG icons para el resumen (equivalentes a MUI icons del app fuente) ────────
@@ -146,7 +147,7 @@ export default function Historial() {
                     onChange={e => setIdA(parseInt(e.target.value))}
                   >
                     {snapshots.map(s => (
-                      <option key={s.id} value={s.id}>{s.periodo} · {s.fechaCarga}</option>
+                      <option key={s.id} value={s.id}>{snapshotLabel(s)}</option>
                     ))}
                   </select>
                 </div>
@@ -163,7 +164,7 @@ export default function Historial() {
                     onChange={e => setIdB(parseInt(e.target.value))}
                   >
                     {snapshots.map(s => (
-                      <option key={s.id} value={s.id}>{s.periodo} · {s.fechaCarga}</option>
+                      <option key={s.id} value={s.id}>{snapshotLabel(s)}</option>
                     ))}
                   </select>
                 </div>
