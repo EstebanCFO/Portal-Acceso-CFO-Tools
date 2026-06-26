@@ -166,21 +166,7 @@ export default function SemaforoGeneral({ onSelectProject, onSalir }: Props) {
           ))}
         </div>
 
-        <div className="pa-header__spacer" />
-
-        {/* Referencia de colores */}
-        {data && data.referencia.length > 0 && (
-          <div className="pa-referencia">
-            {data.referencia.map(r => (
-              <div key={r.color_label} className="pa-ref-item">
-                <span className="pa-dot" style={{ background: r.color_hex }} />
-                <span>{r.description.split('—')[0].trim()}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Botón Subir Excel */}
+        {/* Botón Subir Excel — al lado del toggle */}
         <input
           ref={fileInputRef}
           type="file"
@@ -197,9 +183,23 @@ export default function SemaforoGeneral({ onSelectProject, onSalir }: Props) {
           {uploading ? (
             <><span className="pa-upload-spinner" /> Procesando…</>
           ) : (
-            <>📤 Subir Excel</>
+            <>📤 Cargar Información</>
           )}
         </button>
+
+        <div className="pa-header__spacer" />
+
+        {/* Referencia de colores — al extremo derecho */}
+        {data && data.referencia.length > 0 && (
+          <div className="pa-referencia">
+            {data.referencia.map(r => (
+              <div key={r.color_label} className="pa-ref-item">
+                <span className="pa-dot" style={{ background: r.color_hex }} />
+                <span>{r.description.split('—')[0].trim()}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Body */}
