@@ -104,17 +104,26 @@ export default function SemaforoGeneral({ onSelectProject, onSalir }: Props) {
     try {
       const result = await api.ingest(file)
       setIngestResult(result)
-      // Refrescar períodos y semáforo con los nuevos datos
+
+      // Refrescar períodos (combo actualizado con nuevo timestamp)
       const ps = await api.periodos()
       setPeriodos(ps)
-      if (ps.length > 0) {
-        const newPeriod = ps[0].period_date
-        setPeriod(newPeriod)
-      }
+
+      // Tomar el período más reciente (puede ser el mismo date que antes)
+      const targetPeriod = ps.length > 0 ? ps[0].period_date : period
+
+      // Siempre recargar el semáforo explícitamente — no depender del
+      // useEffect (que no dispara si period_date no cambió de valor)
+      setPeriod(targetPeriod)
+      setLoading(true)
+      setError(null)
+      const d = await api.semaforo(targetPeriod, tipo)
+      setData(d)
     } catch (err) {
       setIngestError(String(err))
     } finally {
       setUploading(false)
+      setLoading(false)
     }
   }
 
