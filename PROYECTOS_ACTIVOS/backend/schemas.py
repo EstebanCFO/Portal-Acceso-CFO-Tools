@@ -145,4 +145,5 @@ class EjercicioEconomicoOut(BaseModel):
 
 class PeriodoOut(BaseModel):
     period_date: date
-    label:       str   # "Junio 2026"
+    label:       str            # "Junio 2026 — 14:30:22"
+    upload_ts:   Optional[str] = None  # "14:30:22" (solo si viene de ingest_uploads)

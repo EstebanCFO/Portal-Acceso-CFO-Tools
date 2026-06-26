@@ -4,6 +4,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional, List
 from sqlalchemy import select, func, text
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import Session, joinedload
 
 from models import (
@@ -24,8 +25,31 @@ MESES_ES = {
 # ── Períodos ──────────────────────────────────────────────────────────────────
 
 def get_periodos(db: Session) -> List[schemas.PeriodoOut]:
-    """Retorna todos los períodos disponibles en project_financials, desc."""
-    rows = db.execute(
+    """
+    Retorna períodos disponibles. Preferencia: ingest_uploads (con timestamp).
+    Fallback: distinct period_dates de project_financials (instalaciones sin historial).
+    """
+    try:
+        rows = db.execute(text(
+            "SELECT period_date, uploaded_at FROM ingest_uploads ORDER BY uploaded_at DESC"
+        )).all()
+        if rows:
+            return [
+                schemas.PeriodoOut(
+                    period_date=row.period_date,
+                    upload_ts=row.uploaded_at.strftime('%H:%M:%S'),
+                    label=(
+                        f'{MESES_ES[row.period_date.month]} {row.period_date.year}'
+                        f' — {row.uploaded_at.strftime("%H:%M:%S")}'
+                    ),
+                )
+                for row in rows
+            ]
+    except (ProgrammingError, Exception):
+        db.rollback()
+
+    # Fallback: project_financials (sin timestamp)
+    rows_fb = db.execute(
         select(ProjectFinancial.period_date)
         .distinct()
         .order_by(ProjectFinancial.period_date.desc())
@@ -35,7 +59,7 @@ def get_periodos(db: Session) -> List[schemas.PeriodoOut]:
             period_date=d,
             label=f'{MESES_ES[d.month]} {d.year}',
         )
-        for d in rows
+        for d in rows_fb
     ]
 
 

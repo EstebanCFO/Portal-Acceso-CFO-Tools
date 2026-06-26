@@ -166,7 +166,7 @@ export default function SemaforoGeneral({ onSelectProject, onSalir }: Props) {
           ))}
         </div>
 
-        {/* Botón Subir Excel — al lado del toggle */}
+        {/* Botón Cargar Información — al lado del toggle */}
         <input
           ref={fileInputRef}
           type="file"
@@ -186,20 +186,6 @@ export default function SemaforoGeneral({ onSelectProject, onSalir }: Props) {
             <>📤 Cargar Información</>
           )}
         </button>
-
-        <div className="pa-header__spacer" />
-
-        {/* Referencia de colores — al extremo derecho */}
-        {data && data.referencia.length > 0 && (
-          <div className="pa-referencia">
-            {data.referencia.map(r => (
-              <div key={r.color_label} className="pa-ref-item">
-                <span className="pa-dot" style={{ background: r.color_hex }} />
-                <span>{r.description.split('—')[0].trim()}</span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Body */}
@@ -215,15 +201,6 @@ export default function SemaforoGeneral({ onSelectProject, onSalir }: Props) {
         {ingestResult && (
           <div className="pa-ingest-banner pa-ingest-banner--ok">
             ✅ Excel procesado correctamente
-            {ingestResult.period && <> · Período: <strong>{ingestResult.period.slice(0,7)}</strong></>}
-            {' '} · <strong>{ingestResult.solapas_real}</strong> proyectos
-            · <strong>{ingestResult.recursos_total}</strong> recursos
-            · Semáforo: <strong>{ingestResult.semaforo_matched}</strong> coincidentes
-            {ingestResult.semaforo_unmatched > 0 && (
-              <span style={{ color: 'var(--warning)' }}>
-                {' '}· {ingestResult.semaforo_unmatched} sin match: {ingestResult.unmatched_names.join(', ')}
-              </span>
-            )}
           </div>
         )}
 
@@ -334,6 +311,25 @@ export default function SemaforoGeneral({ onSelectProject, onSalir }: Props) {
                       <div className="pa-kpi__value">{fmt.ars(data.dc_metrics.costo_bench_dc)}</div>
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Footer — referencia de colores */}
+            {data.referencia.length > 0 && (
+              <div className="pa-footer-ref">
+                <span className="pa-footer-ref__title">Resultado Real %</span>
+                <div className="pa-footer-ref__items">
+                  {data.referencia.map(r => {
+                    // Limpia el prefijo "Resultado Real % " del primer ítem si viene incluido
+                    const desc = r.description.replace(/^Resultado Real %\s*/i, '')
+                    return (
+                      <div key={r.color_label} className="pa-footer-ref__item">
+                        <span className="pa-dot" style={{ background: r.color_hex }} />
+                        <span>{desc}</span>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}

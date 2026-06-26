@@ -1,8 +1,9 @@
 // tipos.ts — Interfaces TypeScript para Proyectos Activos
 
 export interface Periodo {
-  period_date: string   // "2026-01-01"
-  label:       string   // "Enero 2026"
+  period_date: string    // "2026-01-01"
+  label:       string    // "Junio 2026 — 14:30:22"
+  upload_ts?:  string    // "14:30:22" (presente cuando viene de ingest_uploads)
 }
 
 export interface SemaforoReferencia {

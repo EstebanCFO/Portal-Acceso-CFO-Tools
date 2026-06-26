@@ -284,6 +284,24 @@ def insert_dc_metrics(cur, dc, semaforo_type: str, period_date: str) -> None:
     ))
 
 
+# ── Tabla de historial de cargas ──────────────────────────────────────────────
+
+_CREATE_INGEST_UPLOADS = """
+CREATE TABLE IF NOT EXISTS ingest_uploads (
+    id          SERIAL PRIMARY KEY,
+    period_date DATE             NOT NULL,
+    uploaded_at TIMESTAMP        NOT NULL DEFAULT NOW()
+);
+"""
+
+
+def ensure_ingest_uploads_table(conn) -> None:
+    """Crea la tabla ingest_uploads si no existe (migración inline)."""
+    with conn.cursor() as cur:
+        cur.execute(_CREATE_INGEST_UPLOADS)
+    conn.commit()
+
+
 # ── Ingesta principal (retorna stats) ─────────────────────────────────────────
 
 def ingest_from_file(excel_path: str, dry_run: bool = False) -> dict:
@@ -297,6 +315,8 @@ def ingest_from_file(excel_path: str, dry_run: bool = False) -> dict:
     semaforo  = parse_semaforo_general(excel_path)
     proyectos = parse_all_real_sheets(excel_path)
 
+    period_raw = semaforo.acumulado_rows[0].period_date if semaforo.acumulado_rows else None
+
     stats = {
         'semaforo_acumulado':  len(semaforo.acumulado_rows),
         'semaforo_mensual':    len(semaforo.mensual_rows),
@@ -306,7 +326,8 @@ def ingest_from_file(excel_path: str, dry_run: bool = False) -> dict:
         'semaforo_unmatched':  0,
         'unmatched_names':     [],
         'dry_run':             dry_run,
-        'period':              semaforo.acumulado_rows[0].period_date if semaforo.acumulado_rows else None,
+        'period':              period_raw,
+        'upload_ts':           None,
     }
 
     if dry_run:
@@ -315,9 +336,14 @@ def ingest_from_file(excel_path: str, dry_run: bool = False) -> dict:
     if not HAS_PSYCOPG2:
         raise RuntimeError('psycopg2 no instalado: pip install psycopg2-binary')
 
-    db_url = get_db_url()
-    conn   = psycopg2.connect(db_url)
+    db_url     = get_db_url()
+    conn       = psycopg2.connect(db_url)
+    upload_now = datetime.now()
+
     try:
+        # Migración: crea ingest_uploads si no existe
+        ensure_ingest_uploads_table(conn)
+
         with conn:
             with conn.cursor() as cur:
                 # 1. Solapas REAL (proyectos, recursos, financiero, historial)
@@ -338,12 +364,19 @@ def ingest_from_file(excel_path: str, dry_run: bool = False) -> dict:
 
                 # 4. Métricas DC (project_id NULL)
                 if semaforo.dc_metrics:
-                    period = (semaforo.acumulado_rows[0].period_date
-                              if semaforo.acumulado_rows else '2026-01-01')
+                    period = period_raw or '2026-01-01'
                     insert_dc_metrics(cur, semaforo.dc_metrics, 'ACUMULADO', period)
                     insert_dc_metrics(cur, semaforo.dc_metrics, 'MENSUAL',   period)
 
+                # 5. Registrar carga en historial
+                if period_raw:
+                    cur.execute(
+                        "INSERT INTO ingest_uploads (period_date, uploaded_at) VALUES (%s, %s)",
+                        (period_raw, upload_now),
+                    )
+
         conn.commit()
+        stats['upload_ts'] = upload_now.strftime('%H:%M:%S')
     except Exception:
         conn.rollback()
         raise
