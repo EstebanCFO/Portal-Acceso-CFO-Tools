@@ -85,6 +85,19 @@ export const APP_REGISTRY: App[] = [
     status:      'active',
     category:    '',
   },
+  {
+    id:          'proyectos-activos',
+    name:        'Proyectos Activos',
+    description: 'Semáforo general de rentabilidad y ejercicio económico por proyecto — DC CFOTech',
+    icon:        '💼',
+    url:         '/apps/proyectos-activos/',
+    type:        'iframe',
+    iconBg:      '#EEF2F8',
+    iconColor:   '#0A1F44',
+    tags:        ['Finanzas', 'Proyectos', 'Rentabilidad', 'DC'],
+    status:      'active',
+    category:    'Delivery Center',
+  },
 ]
 
 // Helpers

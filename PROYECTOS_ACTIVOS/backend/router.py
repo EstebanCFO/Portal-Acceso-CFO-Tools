@@ -1,13 +1,22 @@
 """router.py — FastAPI router (montable inline en portal_server.py o standalone)."""
 from __future__ import annotations
+import os
+import sys
+import shutil
+import tempfile
 from datetime import date
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 
 import crud
 import schemas
 from database import get_db
+
+# Ruta al ETL (un nivel arriba del backend/)
+_ETL_DIR = os.path.join(os.path.dirname(__file__), '..', 'etl')
+if _ETL_DIR not in sys.path:
+    sys.path.insert(0, _ETL_DIR)
 
 router = APIRouter(tags=['proyectos-activos'])
 
@@ -101,3 +110,43 @@ def ejercicio_economico(
     if not result:
         raise HTTPException(status_code=404, detail=f'Proyecto {project_id} no encontrado.')
     return result
+
+
+# ── Ingest Excel ──────────────────────────────────────────────────────────────
+
+@router.post('/api/ingest')
+async def ingest_excel(file: UploadFile = File(...)):
+    """
+    Recibe un archivo .xlsx, ejecuta el ETL completo y devuelve estadísticas.
+    El frontend lo usa para actualizar los datos sin salir de la app.
+    """
+    if not file.filename or not file.filename.lower().endswith('.xlsx'):
+        raise HTTPException(status_code=422, detail='Solo se aceptan archivos .xlsx')
+
+    # Guardar en archivo temporal (el ETL necesita una ruta en disco)
+    tmp = tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False)
+    try:
+        shutil.copyfileobj(file.file, tmp)
+        tmp.close()
+
+        from ingest import ingest_from_file
+        stats = ingest_from_file(tmp.name)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error en ETL: {e}')
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except OSError:
+            pass
+
+    return {
+        'ok':                  True,
+        'period':              stats.get('period'),
+        'solapas_real':        stats.get('solapas_real', 0),
+        'recursos_total':      stats.get('recursos_total', 0),
+        'semaforo_acumulado':  stats.get('semaforo_acumulado', 0),
+        'semaforo_mensual':    stats.get('semaforo_mensual', 0),
+        'semaforo_matched':    stats.get('semaforo_matched', 0),
+        'semaforo_unmatched':  stats.get('semaforo_unmatched', 0),
+        'unmatched_names':     stats.get('unmatched_names', []),
+    }

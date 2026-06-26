@@ -179,4 +179,14 @@ describe('invariantes de negocio', () => {
     expect(app?.type).toBe('iframe')
     expect(app?.category).toBe('')
   })
+
+  it('proyectos-activos existe, está en el gateway y está activa', () => {
+    const app = getApp('proyectos-activos')
+    expect(app).toBeDefined()
+    expect(app?.url).toBe('/apps/proyectos-activos/')
+    expect(app?.status).toBe('active')
+    expect(app?.type).toBe('iframe')
+    expect(app?.category).toBe('Delivery Center')
+    expect(app?.tags).toContain('Finanzas')
+  })
 })

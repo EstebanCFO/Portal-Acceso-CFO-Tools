@@ -12,6 +12,11 @@ import subprocess
 import sys
 import os
 
+# Fix encoding en consola Windows (cp1252 no soporta emojis)
+if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 SCHEMA_SQL = os.path.join(BASE_DIR, 'schema.sql')
 ENV_FILE   = os.path.join(BASE_DIR, 'backend', '.env')

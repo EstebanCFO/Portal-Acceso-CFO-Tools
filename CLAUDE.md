@@ -1,6 +1,6 @@
 # CLAUDE.md — Portal de Acceso CFOTech
 
-Guía de contexto para futuras sesiones de Claude Code en este proyecto.
+Guía operativa para sesiones de Claude Code. Arquitectura detallada → `ARQUITECTURA.md`.
 
 ---
 
@@ -37,12 +37,11 @@ El portal actúa como contenedor: renderiza cada app en un `<iframe>`. Las apps 
 
 ```
 Portal de Acceso\
-├── CLAUDE.md                      ← este archivo
+├── CLAUDE.md                      ← este archivo (operativo)
+├── ARQUITECTURA.md                ← referencia técnica — ecosistema, gateway, postMessage, decisiones
 ├── DESIGN_SYSTEM.md               ← DS del portal
 ├── package.json                   ← react ^19.2.7, vite ^8.0.16, vitest ^4.1.8
 ├── vite.config.ts                 ← port 5174
-├── tsconfig.json / tsconfig.app.json / tsconfig.node.json
-├── index.html
 ├── .env                           ← VITE_HOST, VITE_PORTAL_PORT, VITE_LAUNCHER_PORT (gitignore)
 ├── .env.example                   ← plantilla pública del .env raíz
 ├── START.bat                      ← abre la UI flotante del launcher (pythonw)
@@ -51,42 +50,37 @@ Portal de Acceso\
 ├── portal_server.py               ← ★ Gateway FastAPI/uvicorn :5174 — sirve portal + apps
 │
 ├── portal-launcher\               ← Servicio local de lanzamiento
-│   ├── launcher.py                ← Flask :4999 — POST /api/launch, GET /api/status, POST /api/stop
-│   ├── launcher_ui.py             ← UI flotante tkinter — arranca portal_server.py, muestra estado
-│   ├── run_ui.vbs                 ← lanza launcher_ui.py sin ventana DOS (llamado por START.bat)
+│   ├── launcher.py                ← Flask :4999 (legacy)
+│   ├── launcher_ui.py             ← UI flotante tkinter — arranca portal_server.py
+│   ├── run_ui.vbs                 ← lanza launcher_ui.py sin ventana DOS
 │   ├── requirements.txt
-│   └── .env                       ← PORT, APP_HOST, PORTAL_PORT, ALLOWED_ORIGINS, AUTOSTART_APPS
+│   └── .env
 │
-├── REPORTE_DEV_OPS\               ← App Reporte DevOps (Flask :5000 + React :5001)
-├── BANDAS_SALARIALES\             ← App Bandas Salariales (ASP.NET :5050 + React :5173)
-├── JOB_MATCHER\                   ← App Job Matcher (Node.js :5002 + React Vite :5003)
-│   ├── backend\                   ← API Node.js/Express :5002
-│   ├── frontend\                  ← React 19 + Vite :5003 (FASE 3)
-│   ├── start.bat / stop.bat
-│   └── CLAUDE.md
-│
-├── WS_A_TEXTO\                    ← App WS a Texto (FastAPI inline + React Vite :5009)
-│   ├── web\
-│   │   ├── backend\               ← router.py FastAPI — montado inline en el gateway
-│   │   └── frontend\              ← React 19 + Vite :5009 → /apps/sound-catch/
-│   ├── sound_catch\               ← módulo Python de transcripción (Whisper)
-│   ├── START.bat / STOP.bat
-│   └── CLAUDE.md
+├── REPORTE_DEV_OPS\               ← Flask :5000 + React :5001
+├── BANDAS_SALARIALES\             ← ASP.NET :5050 + React :5173
+├── JOB_MATCHER\                   ← Node.js :5002 + React :5003
+├── SURVEY\                        ← ASP.NET :5055 + React :5176
+├── WS_A_TEXTO\                    ← FastAPI inline + React :5009
+├── PROYECTOS_ACTIVOS\             ← FastAPI :5010 + React :5011 + PostgreSQL :5432
+│   ├── backend\                   ← FastAPI + SQLAlchemy + psycopg2
+│   ├── etl\                       ← ingest.py (pandas + openpyxl)
+│   ├── frontend\                  ← React 19 + Vite :5011 + Recharts
+│   └── setup_db.py                ← crea DB + schema + .env del backend
 │
 └── src\
     ├── main.tsx
     ├── index.css                  ← variables DS + todas las clases del portal
-    ├── vite-env.d.ts              ← tipos Vite (VITE_HOST, VITE_PORTAL_PORT, VITE_LAUNCHER_PORT)
+    ├── vite-env.d.ts
     ├── App.tsx                    ← activeApp state + postMessage handler + ALLOWED_APP_ORIGINS
     ├── registry\
     │   └── apps.ts                ← ★ REGISTRO CENTRAL — editar aquí para agregar apps
     ├── components\
-    │   ├── Header.tsx             ← logo + nav pills + category label + btn Salir
-    │   └── AppFrame.tsx           ← <iframe> con loading / error / coming-soon / link
+    │   ├── Header.tsx
+    │   └── AppFrame.tsx
     ├── api\
-    │   └── launcher.ts            ← cliente HTTP del Portal Launcher
+    │   └── launcher.ts
     ├── pages\
-    │   └── Dashboard.tsx          ← banner + grilla de AppCards
+    │   └── Dashboard.tsx
     └── __tests__\
         ├── registry.test.ts       ← invariantes del registro
         └── components.test.tsx
@@ -104,20 +98,17 @@ Portal de Acceso\
 | npm | 9+ | `npm -v` |
 | Python | 3.9+ | `python --version` |
 | .NET SDK | 8.0+ | `dotnet --version` |
+| PostgreSQL | 16+ | `psql --version` |
 | Git | cualquiera | `git --version` |
 
 > Python debe estar en PATH. Si se instaló desde Microsoft Store puede no estarlo.
 
----
-
-### 1 — Clonar el repositorio
+### 1 — Clonar
 
 ```powershell
 git clone https://github.com/EstebanCFO/Portal-Acceso-CFO-Tools.git "C:\Esteban CFOTech\Portal de Acceso"
 cd "C:\Esteban CFOTech\Portal de Acceso"
 ```
-
----
 
 ### 2 — Dependencias del portal shell
 
@@ -125,99 +116,68 @@ cd "C:\Esteban CFOTech\Portal de Acceso"
 npm install
 ```
 
----
-
 ### 3 — Dependencias del launcher Python
 
 ```powershell
-cd portal-launcher
-pip install -r requirements.txt
-cd ..
+cd portal-launcher ; pip install -r requirements.txt ; cd ..
 ```
 
-Paquetes instalados: `flask`, `flask-cors`, `requests`.
-
----
-
 ### 4 — Variables de entorno del portal
-
-Copiar la plantilla y ajustar si se necesita (en local no es necesario cambiar nada):
 
 ```powershell
 copy .env.example .env
 ```
 
 Contenido por defecto (funciona en local sin cambios):
-
 ```
 VITE_HOST=localhost
 VITE_PORTAL_PORT=5174
 VITE_LAUNCHER_PORT=4999
 ```
 
----
-
 ### 5 — Variables de entorno del launcher
-
-Copiar la plantilla:
 
 ```powershell
 copy portal-launcher\.env.example portal-launcher\.env
 ```
 
-> `portal-launcher\.env` ya existe con valores correctos para local si se clonó el repo.
-
----
-
 ### 6 — Variables de entorno de cada app
-
-Cada app tiene su propio `.env` con secretos (API keys, PATs, tokens). Estos **no se guardan en git**. El equipo los comparte por canal seguro (LastPass, Vault, etc.).
 
 | App | Archivo | Variables clave |
 |-----|---------|-----------------|
 | Reporte DevOps | `REPORTE_DEV_OPS/backend/.env` | `AZURE_DEVOPS_PAT`, `AZURE_DEVOPS_ORGS`, `FRONTEND_URL`, `PORTAL_ORIGIN` |
 | Job Matcher | `JOB_MATCHER/backend/.env` | `ANTHROPIC_API_KEY`, `PORT=5002`, `CORS_ORIGINS` |
 | Survey | `SURVEY/SurveyApp.Web/appsettings.Development.json` | `SurveyMonkey:AccessToken` |
-| Bandas | sin secretos | CORS se configura en `appsettings.json` |
+| Proyectos Activos | `PROYECTOS_ACTIVOS/backend/.env` | `DB_URL=postgresql://...` (generado por `setup_db.py`) |
+| Bandas | sin secretos | CORS en `appsettings.json` |
 
-Cada frontend tiene `.env.example` como referencia:
+### 7 — Setup Proyectos Activos (PostgreSQL)
 
 ```powershell
-# Ejemplo para Reporte DevOps frontend
-copy REPORTE_DEV_OPS\frontend\.env.example REPORTE_DEV_OPS\frontend\.env
-# Editar VITE_PORTAL_URL si el portal no corre en localhost:5174
+cd PROYECTOS_ACTIVOS
+python setup_db.py --password MiPassword123
+# Crea DB + schema + backend/.env
+cd etl
+python ingest.py --file "..\Proyectos Activos 2026.xlsx"
+cd ..\..
 ```
 
----
-
-### 7 — Dependencias npm de cada app frontend
-
-El launcher instala dependencias automáticamente si detecta que falta `node_modules`. Para instalar manualmente:
+### 8 — Dependencias npm de cada app frontend
 
 ```powershell
-cd REPORTE_DEV_OPS\frontend  ; npm install ; cd ..\..
-cd JOB_MATCHER\frontend      ; npm install ; cd ..\..
+cd REPORTE_DEV_OPS\frontend         ; npm install ; cd ..\..
+cd JOB_MATCHER\frontend             ; npm install ; cd ..\..
 cd BANDAS_SALARIALES\bandas-frontend ; npm install ; cd ..\..
-cd SURVEY\survey-frontend    ; npm install ; cd ..\..
+cd SURVEY\survey-frontend           ; npm install ; cd ..\..
+cd PROYECTOS_ACTIVOS\frontend       ; npm install ; cd ..\..
 ```
 
----
-
-### 8 — Verificar que todo funciona
+### 9 — Verificar que todo funciona
 
 ```powershell
-# Tests del portal shell (deben pasar 127/127)
-npm run test
-
-# Levantar el portal completo (doble clic o PowerShell)
-.\START.bat
+npm run test      # Portal shell: 141/141 tests
+.\START.bat       # Levanta el portal completo
 ```
-
-El `START.bat` abre la **UI flotante del launcher** (ventana verde CFOTech) que:
-1. Libera el puerto `:5174`
-2. Instala dependencias Python si faltan (`uvicorn`, `fastapi`, `httpx`, `python-dotenv`)
-3. Arranca `portal_server.py` (gateway FastAPI en `:5174`)
-4. Abre el browser automáticamente cuando `/api/health` responde
 
 ---
 
@@ -227,154 +187,61 @@ El `START.bat` abre la **UI flotante del launcher** (ventana verde CFOTech) que:
 
 `START.bat` → abre UI flotante → arranca `portal_server.py` → abre browser en `:5174`
 
-La UI flotante muestra spinner mientras espera que el gateway responda en `/api/health`.
-- **×** — cierra la ventana sin bajar los servicios (siguen corriendo en background)
+La UI flotante muestra spinner mientras espera `/api/health` (hasta 45s).
 
 ### Opción B — Terminal (gateway)
 
 ```powershell
-cd "C:\Esteban CFOTech\Portal de Acceso"
 python portal_server.py   # gateway en http://localhost:5174
 ```
-
-El gateway arranca todos los backends y frontends automáticamente.
 
 ### Opción C — Dev mode (portal shell solo)
 
 ```powershell
-cd "C:\Esteban CFOTech\Portal de Acceso"
-npm install       # solo la primera vez
-npm run dev       # → portal Vite en http://localhost:5175 (dev)
+npm run dev       # → portal Vite en http://localhost:5175
 npm run build     # build de producción en dist/
-npm run test      # suite Vitest (127 tests)
+npm run test      # suite Vitest
 ```
 
-> En dev, el gateway (`portal_server.py`) sigue siendo necesario en `:5174` para servir las apps. El portal Vite corre en `:5175`.
+> En dev, el gateway (`portal_server.py`) sigue siendo necesario en `:5174`.
 
 ---
 
-## Variables de entorno y configuración de entorno
+## Variables de entorno
 
 ### Portal shell (`.env` raíz)
 
 | Variable | Descripción | Default |
 |----------|-------------|---------|
-| `VITE_HOST` | Host donde corren el portal y las apps (sin protocolo ni puerto) | `localhost` |
-| `VITE_PORTAL_PORT` | Puerto del portal Vite | `5174` |
+| `VITE_HOST` | Host sin protocolo ni puerto | `localhost` |
+| `VITE_PORTAL_PORT` | Puerto del portal | `5174` |
 | `VITE_LAUNCHER_PORT` | Puerto del launcher Flask | `4999` |
-
-Estas variables se inyectan en el bundle por Vite. En el código TypeScript se leen como `import.meta.env.VITE_*`.
 
 ### Portal Launcher (`portal-launcher/.env`)
 
 | Variable | Descripción | Default |
 |----------|-------------|---------|
 | `PORT` | Puerto del launcher Flask | `4999` |
-| `APP_HOST` | Host del servidor (para abrir el browser) | `localhost` |
-| `PORTAL_PORT` | Puerto del portal (para abrir el browser) | `5174` |
-| `ALLOWED_ORIGINS` | Orígenes CORS permitidos (CSV, sin espacios) | `http://localhost:5174` |
-| `AUTOSTART_APPS` | Si `true`, lanza todas las apps al iniciar | `false` |
+| `APP_HOST` | Host para abrir el browser | `localhost` |
+| `PORTAL_PORT` | Puerto del portal | `5174` |
+| `ALLOWED_ORIGINS` | Orígenes CORS (CSV, sin espacios) | `http://localhost:5174` |
+| `AUTOSTART_APPS` | Si `true`, lanza todo al iniciar | `false` |
 
-### Frontends de apps (`<app>/frontend/.env`)
+### Frontends de apps
 
 | Variable | Descripción | Default en código |
 |----------|-------------|-------------------|
-| `VITE_PORTAL_URL` | URL completa del portal — destino del postMessage al salir | `http://localhost:5174` |
+| `VITE_PORTAL_URL` | Destino del postMessage al salir | `http://localhost:5174` |
+| `VITE_API_URL` | Prefijo de la API (solo apps con backend propio) | ver app |
 
-Referencia: cada frontend tiene `.env.example` con la plantilla lista para copiar.
-
-### Backends de apps
-
-| App | Variable | Propósito |
-|-----|----------|-----------|
-| Reporte DevOps | `PORTAL_ORIGIN` | Origen CORS del portal (`http://localhost:5174`) |
-| Job Matcher | `CORS_ORIGINS` | CSV de orígenes permitidos (frontend + portal) |
-| Bandas | `AllowedOrigins` en `appsettings.json` | CSV de orígenes CORS |
-| Survey | `AllowedOrigins` en `appsettings.json` | CSV de orígenes CORS |
+> Cada frontend tiene `.env.example` con la plantilla.
 
 ---
 
-## Despliegue en red interna o servidor
+## Despliegue en red interna
 
-Para que el portal sea accesible desde otras máquinas (no solo `localhost`):
-
-### Paso 1 — Portal shell
-
-Editar `.env` en la raíz del portal:
-
-```
-VITE_HOST=192.168.1.100        # IP o hostname del servidor
-VITE_PORTAL_PORT=5174
-VITE_LAUNCHER_PORT=4999
-```
-
-Luego rebuildar:
-```powershell
-npm run build      # genera dist/
-npm run preview    # sirve dist/ en http://0.0.0.0:5174
-```
-
-### Paso 2 — Launcher
-
-Editar `portal-launcher/.env`:
-
-```
-APP_HOST=192.168.1.100
-PORTAL_PORT=5174
-ALLOWED_ORIGINS=http://192.168.1.100:5174
-AUTOSTART_APPS=true            # recomendado en servidor: arranca todo al iniciar
-```
-
-El launcher escucha en `0.0.0.0` — ya acepta conexiones desde la red.
-
-### Paso 3 — Backends (CORS)
-
-**Reporte DevOps** (`REPORTE_DEV_OPS/backend/.env`):
-```
-FRONTEND_URL=http://192.168.1.100:5001
-PORTAL_ORIGIN=http://192.168.1.100:5174
-```
-
-**Job Matcher** (`JOB_MATCHER/backend/.env`):
-```
-CORS_ORIGINS=http://192.168.1.100:5003,http://192.168.1.100:5174
-```
-
-**Bandas Salariales** (`BANDAS_SALARIALES/BandasSalariales.Web/appsettings.json`):
-```json
-"AllowedOrigins": "http://192.168.1.100:5173,http://192.168.1.100:5174"
-```
-
-**Survey Analytics** (`SURVEY/SurveyApp.Web/appsettings.json`):
-```json
-"AllowedOrigins": "http://192.168.1.100:5176,http://192.168.1.100:5174"
-```
-
-### Paso 4 — Frontends de apps (postMessage)
-
-Crear `.env` en cada frontend copiando su `.env.example`:
-
-```
-VITE_PORTAL_URL=http://192.168.1.100:5174
-```
-
-> **Nota sobre Vite en red:** Por defecto Vite escucha solo en `localhost`. Para hacerlo accesible desde la red, agregar `--host` al script en `package.json`:
-> ```json
-> "dev": "vite --host 0.0.0.0"
-> ```
-> O configurar `server.host: true` en `vite.config.ts` de cada frontend.
-
-### Tabla resumen — cambios por entorno
-
-| Archivo | Localhost | Red interna |
-|---------|-----------|-------------|
-| `.env` (raíz) | `VITE_HOST=localhost` | `VITE_HOST=192.168.1.100` |
-| `portal-launcher/.env` | `APP_HOST=localhost` | `APP_HOST=192.168.1.100` |
-| `portal-launcher/.env` | `ALLOWED_ORIGINS=http://localhost:5174` | `ALLOWED_ORIGINS=http://192.168.1.100:5174` |
-| `REPORTE_DEV_OPS/backend/.env` | `PORTAL_ORIGIN=http://localhost:5174` | `PORTAL_ORIGIN=http://192.168.1.100:5174` |
-| `JOB_MATCHER/backend/.env` | `CORS_ORIGINS=...:5003,...:5174` | `CORS_ORIGINS=...<IP>:5003,...<IP>:5174` |
-| `*/appsettings.json` | `"AllowedOrigins": "...:5173,...:5174"` | `"AllowedOrigins": "...<IP>:5173,...<IP>:5174"` |
-| Cada `frontend/.env` | `VITE_PORTAL_URL=http://localhost:5174` | `VITE_PORTAL_URL=http://192.168.1.100:5174` |
+Para acceso desde otras máquinas, cambiar `VITE_HOST` en `.env` raíz y `APP_HOST` + `ALLOWED_ORIGINS` en `portal-launcher/.env`.
+Ver tabla completa en `ARQUITECTURA.md`.
 
 ---
 
@@ -383,25 +250,22 @@ VITE_PORTAL_URL=http://192.168.1.100:5174
 Archivo central para declarar todas las apps del portal.
 **Agregar una app nueva = agregar un objeto al array `APP_REGISTRY`.**
 
-Las URLs se construyen con `_H` (leído de `VITE_HOST` en `.env`):
-
 ```typescript
 const _H = import.meta.env.VITE_HOST ?? 'localhost'
 
 export const APP_REGISTRY: App[] = [
   {
-    id:          'bandas-salariales',
-    name:        'Bandas Salariales',
-    description: 'Gestión y análisis de bandas salariales por posición y nivel',
-    icon:        '📊',
-    url:         `http://${_H}:5173`,   // ← sin localhost hardcodeado
+    id:          'proyectos-activos',
+    name:        'Proyectos Activos',
+    description: 'Semáforo de rentabilidad y ejercicio económico por proyecto',
+    icon:        '💼',
+    url:         '/apps/proyectos-activos/',   // ← gateway URL
     type:        'iframe',
     iconBg:      '#EEF2F8',
     iconColor:   '#0A1F44',
-    tags:        ['RRHH', 'Compensaciones'],
+    tags:        ['Finanzas', 'Proyectos', 'DC'],
     status:      'active',
-    category:    'Recursos Humanos',
-    startCmd:    'BANDAS_SALARIALES\\START.bat',
+    category:    'Delivery Center',
   },
 ]
 ```
@@ -423,195 +287,30 @@ export const APP_REGISTRY: App[] = [
 
 ---
 
-## Protocolo postMessage — apps ↔ portal
+## postMessage y detección iframe
 
-### El problema
-Las apps corren en iframes cross-origin. `window.confirm()`, `window.close()` y `window.location` quedan bloqueados o silenciados.
+Ver `ARQUITECTURA.md` para protocolo completo, `ALLOWED_APP_ORIGINS` actualizada y código de referencia.
 
-### La solución: postMessage
-Cada app envía un mensaje al portal cuando el usuario quiere salir:
-
-```typescript
-// Desde la app embebida — VITE_PORTAL_URL viene de frontend/.env
-const portalUrl = import.meta.env.VITE_PORTAL_URL ?? 'http://localhost:5174'
-window.parent.postMessage(
-  { type: 'portal:goHome', appId: 'job-matcher' },
-  portalUrl,
-)
-```
-
-El portal escucha en `App.tsx`. Los orígenes se construyen con `VITE_HOST`:
-```typescript
-const _H = import.meta.env.VITE_HOST ?? 'localhost'
-
-const ALLOWED_APP_ORIGINS = [
-  `http://${_H}:5001`,   // Reporte DevOps
-  `http://${_H}:5173`,   // Bandas Salariales
-  `http://${_H}:5003`,   // Job Matcher (React frontend)
-  `http://${_H}:5176`,   // Survey Analytics
-]
-```
-
-**Al agregar una nueva app** que usa postMessage: añadir su origen a `ALLOWED_APP_ORIGINS`.
-
-### Detección de modo iframe en cada app
-
-Todas las apps propias detectan si corren dentro del portal:
-```typescript
-const IN_PORTAL = window.self !== window.top  // evaluación estática, módulo-level
-```
-
-- `IN_PORTAL = true` → ocultar header propio, usar postMessage para salir
-- `IN_PORTAL = false` → modo standalone, usar `window.close()` para salir
+Resumen rápido:
+- Apps → portal: `window.parent.postMessage({ type: 'portal:goHome', appId }, VITE_PORTAL_URL)`
+- Detección: `const IN_PORTAL = window.self !== window.top` (módulo-level)
+- Si `IN_PORTAL`: ocultar header propio. Botón Salir → postMessage.
 
 ---
 
-## Portal Launcher (`portal-launcher/launcher.py`)
+## Portal Launcher — Gateway (`portal_server.py`)
 
-Servicio Flask en `:4999` que levanta backend + frontend de cada app.
-Escucha en `0.0.0.0` — accesible desde la red.
+Endpoints del gateway:
 
-### Endpoints
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| POST | `/api/launch/<app_id>` | Lanza backend + frontend en hilos. Idempotente si ya está corriendo. |
-| GET  | `/api/status/<app_id>` | Estado actual: `pending / launching / ready / error` por componente |
-| POST | `/api/stop/<app_id>`   | Termina procesos, mata puertos por número, limpia estado |
-| POST | `/api/stop-all`        | Detiene todos los procesos corrientes |
-| GET  | `/api/health`          | Health check del launcher |
+| GET | `/api/health` | Health check del gateway |
+| GET/POST | `/api/{app_id}/{path}` | Proxy al backend de la app |
+| GET | `/apps/{app_id}/{path}` | Proxy al Vite dev / sirve `dist/` |
+| POST | `/api/shutdown-portal` | Para subprocesos + `os._exit(0)` |
+| POST | `/api/stop-all` | Para subprocesos (mantiene gateway vivo) |
 
-### Auto-start (`AUTOSTART_APPS=true`)
-
-Cuando el launcher arranca, lanza en background todas las apps de `APP_CONFIGS` sin esperar al usuario. Ideal para servidores donde se quiere que todo esté listo al llegar al portal.
-
-### Configuración `APPS` en `portal_server.py` (config actual — reemplaza `launcher.py`)
-
-```python
-APPS: dict[str, dict] = {
-  'sound-catch': {
-    # Backend: router FastAPI montado inline (sin subprocess ni puerto extra)
-    'backend_inline':  True,
-    'frontend_cmd':    'npm run dev',
-    'frontend_dir':    BASE_DIR / 'WS_A_TEXTO' / 'web' / 'frontend',
-    'frontend_port':   5009,
-    'frontend_dist':   BASE_DIR / 'WS_A_TEXTO' / 'web' / 'frontend' / 'dist',
-  },
-  'reporte-devops': {
-    'backend_cmd':     '"python" app.py',      'backend_dir':     BASE_DIR / 'REPORTE_DEV_OPS' / 'backend',
-    'backend_port':    5000,                   'backend_health':  'http://localhost:5000/api/health',
-    'frontend_cmd':    'npm run dev',          'frontend_dir':    BASE_DIR / 'REPORTE_DEV_OPS' / 'frontend',
-    'frontend_port':   5001,                   'frontend_dist':   BASE_DIR / 'REPORTE_DEV_OPS' / 'frontend' / 'dist',
-  },
-  'job-matcher': {
-    'backend_cmd':     'node server.js',       'backend_dir':     BASE_DIR / 'JOB_MATCHER' / 'backend',
-    'backend_port':    5002,                   'backend_health':  'http://localhost:5002/api/health',
-    'backend_path_prefix': '',                 # rutas mixtas: /upload, /analyze, /ask-question…
-    'frontend_cmd':    'npm run dev',          'frontend_dir':    BASE_DIR / 'JOB_MATCHER' / 'frontend',
-    'frontend_port':   5003,                   'frontend_dist':   BASE_DIR / 'JOB_MATCHER' / 'frontend' / 'dist',
-  },
-  'bandas-salariales': {
-    'backend_cmd':     'dotnet run',           'backend_dir':     BASE_DIR / 'BANDAS_SALARIALES' / 'BandasSalariales.Web',
-    'backend_port':    5050,                   'backend_health':  'http://localhost:5050/api/health',
-    'frontend_cmd':    'npm run dev',          'frontend_dir':    BASE_DIR / 'BANDAS_SALARIALES' / 'bandas-frontend',
-    'frontend_port':   5173,                   'frontend_dist':   BASE_DIR / 'BANDAS_SALARIALES' / 'bandas-frontend' / 'dist',
-  },
-  'survey': {
-    'backend_cmd':     'dotnet run',           'backend_dir':     BASE_DIR / 'SURVEY' / 'SurveyApp.Web',
-    'backend_port':    5055,                   'backend_health':  'http://localhost:5055/api/health',
-    'frontend_cmd':    'npm run dev',          'frontend_dir':    BASE_DIR / 'SURVEY' / 'survey-frontend',
-    'frontend_port':   5176,                   'frontend_dist':   BASE_DIR / 'SURVEY' / 'survey-frontend' / 'dist',
-  },
-}
-```
-
-> `portal_server.py` reemplaza `launcher.py` como gestor de procesos. El launcher Flask legacy (:4999) queda como fallback (raramente usado).
-
-### Agregar una app nueva al gateway
-
-1. Agregar entrada en `APPS` en `portal_server.py`
-2. Si el backend es FastAPI: usar `backend_inline: True` + `app.include_router(…, prefix='/api/{id}/api')`
-3. Si el backend es subprocess: especificar `backend_cmd`, `backend_health`, `backend_port`, `backend_timeout`
-4. Especificar `frontend_cmd`, `frontend_dir`, `frontend_port`, `frontend_dist`
-
----
-
-## Apps del ecosistema CFOTech
-
-```
-C:\Esteban CFOTech\Portal de Acceso\          ← repo git principal
-├── portal_server.py         ← ★ Gateway FastAPI :5174 — punto de entrada único
-├── REPORTE_DEV_OPS\         ← Flask API :5000 + React/Vite :5001 → /apps/reporte-devops/
-├── BANDAS_SALARIALES\       ← ASP.NET Core :5050 + React/Vite/CSS-DS :5173 → /apps/bandas-salariales/
-├── JOB_MATCHER\             ← Node.js/Express :5002 + React/Vite :5003 → /apps/job-matcher/
-│   ├── backend\             ← API pura (FASE 3: express.static removido)
-│   └── frontend\            ← React 19 + Vite :5003 (migrado en FASE 3)
-├── SURVEY\                  ← ASP.NET Core :5055 + React/Vite :5176 → /apps/survey/
-├── WS_A_TEXTO\              ← App WS a Texto — FastAPI/Whisper inline + React/Vite :5009 → /apps/sound-catch/
-│   ├── web\
-│   │   ├── backend\         ← router.py FastAPI montado INLINE en el gateway (sin subprocess)
-│   │   └── frontend\        ← React 19 + Vite :5009
-│   └── sound_catch\         ← módulo Python de transcripción (Whisper)
-├── portal-launcher\         ← Flask :4999 (launcher legacy) + launcher_ui.py
-└── src\                     ← Portal shell React 19 + Vite 8 (build → dist/)
-```
-
-| Componente | Puerto(s) | Stack | URL en gateway |
-|------------|-----------|-------|----------------|
-| **Gateway** | `:5174` | FastAPI + uvicorn | `http://localhost:5174` |
-| Portal shell | `dist/` (build) | React 19 + Vite 8 | `http://localhost:5174/` |
-| Reporte DevOps | `:5001` front / `:5000` API | React 19 + Vite 8 / Flask | `/apps/reporte-devops/` |
-| Bandas Salariales | `:5173` front / `:5050` API | React 19 + Vite 8 + CSS DS / ASP.NET Core | `/apps/bandas-salariales/` |
-| Job Matcher + JD Generator | `:5003` front / `:5002` API | React 19 + Vite 8 / Node.js + Express | `/apps/job-matcher/` |
-| Survey Analytics | `:5176` front / `:5055` API | React 19 + Vite 8 / ASP.NET Core 8 | `/apps/survey/` |
-| **WS a Texto** | `:5009` front / inline API | React 19 + Vite 8 / FastAPI inline en gateway | `/apps/sound-catch/` |
-| Portal Launcher | `:4999` | Flask | legacy — `launcher_ui.py` ya no lo usa |
-
-### Gateway routes (`portal_server.py`)
-
-| Ruta | Comportamiento |
-|------|---------------|
-| `/apps/{app_id}/{path}` | Dev: proxy al Vite dev server de la app. Prod: sirve `{APP_DIR}/dist/` con `Cache-Control` apropiado |
-| `/api/sound-catch/api/{path}` | Router FastAPI de WS_A_TEXTO montado inline (`include_router`) — sin subprocess |
-| `/api/{app_id}/{path}` | Proxy al backend de la app (Flask/dotnet/Node) |
-| `/api/health` | Health check del gateway |
-| `/api/shutdown-portal` | Detiene todos los subprocesos + apaga uvicorn con `os._exit(0)` tras 600ms |
-| `/{path}` (catch-all) | Dev: proxy al portal Vite `:5175`. Prod: sirve `dist/index.html` con `Cache-Control: no-cache` |
-
-**Headers de caché:**
-- `index.html` (portal y apps): `Cache-Control: no-cache, no-store, must-revalidate` — el browser siempre re-valida antes de usar.
-- `assets/*.js`, `assets/*.css`: `Cache-Control: public, max-age=31536000, immutable` — nombre con hash de contenido, válido 1 año.
-
-**Crítico:** Cada app debe tener `base: '/apps/{id}/'` en `vite.config.ts` para que los assets se sirvan correctamente. Si existe `vite.config.js` en el mismo directorio, Vite lo prioriza sobre `vite.config.ts` — **borrar cualquier `.js` legacy que no tenga `base` configurado**.
-
----
-
-## Layout y alturas (crítico para el iframe)
-
-```
-#root → .portal-root (100vh, flex-col)
-├── .portal-header (48px, flex-shrink: 0)
-└── .portal-body (flex: 1, overflow: hidden, position: relative)
-    ├── activeApp === null → <Dashboard> (height:100%, overflow-y:auto)
-    └── activeApp !== null → <AppFrame> (position:absolute, inset:0)
-            ├── spinner (mientras carga)
-            └── <iframe> (flex:1, 100% height)
-```
-
-**Regla:** `.portal-body` tiene `position: relative` + `overflow: hidden`.
-`AppFrame` usa `position: absolute; inset: 0`.
-
-### AppFrame — Gateway mode vs. direct URL
-
-`AppFrame.tsx` detecta si la app se sirve a través del gateway:
-
-```typescript
-const isGatewayUrl = app.url.startsWith('/apps/')
-```
-
-- **Gateway URL** (`/apps/...`): preflight sin `no-cors` (es same-origin), detecta 503 via `response.ok`.
-- **URL directa** (`http://localhost:XXXX`): preflight con `mode: 'no-cors'` (cross-origin), ignora status code.
-
-Las apps registradas con `url: '/apps/{id}/'` en `apps.ts` usan el gateway. Las registradas con `http://` hacen preflight cross-origin clásico.
+Config completa `APPS` dict y gateway routes → `ARQUITECTURA.md`.
 
 ---
 
@@ -622,9 +321,7 @@ Las apps registradas con `url: '/apps/{id}/'` en `apps.ts` usan el gateway. Las 
 Tokens clave:
 - Header: 48px, `#0B1526`, `border-bottom: 3px solid #1C2E48`
 - Logo: 32×32px, `background: #00A878`, r-8, "CFO" blanco 11px bold
-- Fondo: `#F4F6F9` (--gray1)
-- Acento: `#4FD1B2` (--green-a)
-- Botón principal: `#0A1F44` (--navy)
+- Fondo: `#F4F6F9` (--gray1) · Acento: `#4FD1B2` (--green-a) · Botón: `#0A1F44` (--navy)
 - Sin gradientes · Sin sombras pesadas
 
 ### Spec vigente del Header
@@ -635,10 +332,8 @@ Tokens clave:
 | Fondo | `#0B1526` (--navy-dark) |
 | Border-bottom | `3px solid #1C2E48` |
 | Logo (badge) | 32×32px, r-8, `#00A878`, "CFO" 11px bold |
-| Marca | "CFOTech" blanco 13px bold / "IT Tools" `#4FD1B2` 11px bold — 2 líneas |
-| Divisor | 1px `rgba(255,255,255,.12)`, 22px alto |
+| Marca | "CFOTech" blanco 13px bold / "IT Tools" `#4FD1B2` 11px bold |
 | Nav pills | h-32px, r-20px — inactiva: `rgba(255,255,255,.07)` — activa: `#1B3F8A` |
-| Category label | 12px, `rgba(255,255,255,.45)` |
 | Botón Salir | pill r-20px, border `rgba(255,255,255,.22)` |
 
 ---
@@ -650,8 +345,9 @@ Tokens clave:
 - **CSS plano**: clases del DS, no inline styles salvo valores dinámicos.
 - **Imports**: paths relativos (no aliases `@/`).
 - **Naming**: PascalCase para componentes, camelCase para utils/hooks.
-- **No hardcodear URLs**: siempre desde `app.url` del registry, `import.meta.env` o config.
-- **Tests**: agregar invariante en `registry.test.ts` por cada app nueva en `APP_REGISTRY`.
+- **No hardcodear URLs**: siempre desde `app.url`, `import.meta.env` o config.
+- **`??` vs `||`**: Usar siempre `||` para env vars que pueden ser string vacío (`VITE_API_URL=`).
+- **Tests**: agregar invariante en `registry.test.ts` por cada app nueva.
 
 ---
 
@@ -659,50 +355,26 @@ Tokens clave:
 
 ### Agregar una nueva app al portal
 
-1. `src/registry/apps.ts` → agregar objeto al array `APP_REGISTRY` con URL usando `` `http://${_H}:PUERTO` ``
-2. `portal-launcher/launcher.py` → agregar entrada en `APP_CONFIGS`
+1. `src/registry/apps.ts` → agregar objeto en `APP_REGISTRY` (URL gateway: `'/apps/{id}/'`)
+2. `portal_server.py` → agregar entrada en `APPS` dict
 3. `src/App.tsx` → agregar `` `http://${_H}:PUERTO` `` en `ALLOWED_APP_ORIGINS`
 4. `src/__tests__/registry.test.ts` → agregar invariante de la nueva app
-5. En la app: implementar `IN_PORTAL` detection + postMessage para salir
-6. En cada backend nuevo: configurar CORS para aceptar `PORTAL_ORIGIN` / `AllowedOrigins`
+5. En la app: implementar `IN_PORTAL` + postMessage + `vite.config.ts` con `base: '/apps/{id}/'`
+6. Backend: configurar CORS para `PORTAL_ORIGIN`
 
-**Sin reinicio necesario en desarrollo** — Vite recarga automáticamente.
+### Checklist de integración
 
-### Checklist de integración de cada nueva app
-
-- [ ] Backend expone `GET /api/health` y `POST /api/shutdown` (o `/api/salir`)
+- [ ] Backend expone `GET /api/health`
 - [ ] Frontend detecta `IN_PORTAL = window.self !== window.top`
 - [ ] Header propio oculto cuando `IN_PORTAL === true`
-- [ ] Botón Salir usa `const portalUrl = import.meta.env.VITE_PORTAL_URL ?? 'http://localhost:5174'` como target del postMessage
-- [ ] `frontend/.env.example` creado con `VITE_PORTAL_URL=http://localhost:5174`
-- [ ] CORS del backend incluye variable configurable para el origen del portal
-- [ ] Entrada en `APP_CONFIGS` del launcher con backend/frontend cmd + health URL + timeout
-- [ ] Origen `` `http://${_H}:PUERTO` `` en `ALLOWED_APP_ORIGINS` del portal `App.tsx`
-- [ ] Invariante de test en `registry.test.ts`
+- [ ] Botón Salir usa postMessage a `VITE_PORTAL_URL`
+- [ ] `frontend/.env.example` con `VITE_PORTAL_URL=http://localhost:5174`
+- [ ] `vite.config.ts` con `base: '/apps/{id}/'` (sin `vite.config.js` que lo override)
+- [ ] CORS configurable vía env var
+- [ ] Entrada en `APPS` dict en `portal_server.py`
+- [ ] Origen en `ALLOWED_APP_ORIGINS` del portal `App.tsx`
+- [ ] Invariante en `registry.test.ts`
 - [ ] `.gitignore` con `node_modules/`, `dist/`, `.env`
-
----
-
-## Decisiones técnicas
-
-| Decisión | Razón |
-|----------|-------|
-| Sin React Router | Un `useState` es suficiente con una sola "ruta activa". Se agrega Router cuando haya rutas anidadas reales. |
-| Nav pills en header (no sidebar) | UX compacta — no consume espacio horizontal. |
-| CSS plano (sin Tailwind/MUI) | DS propio ya define clases. MUI solo en apps que lo heredan (Bandas). |
-| Sin backend en el portal | El portal es puro shell estático. |
-| postMessage (no shared state) | Único canal cross-origin disponible para iframes. |
-| `position: absolute; inset: 0` en AppFrame | Más robusto que flex encadenado sin sidebar. |
-| Vitest 4.x (no 2.x) | @vitejs/plugin-react v6 es ESM-only; Vitest 2.x lo carga con `require()` y falla. |
-| `VITE_HOST` en lugar de `VITE_*_URL` por app | Una sola variable controla todos los puertos. Menos configuración en `.env`. |
-| Launcher en `0.0.0.0` | Permite acceso desde red sin cambiar código — solo config en `.env`. |
-| Health checks en `localhost` dentro del launcher | El launcher verifica sus propios procesos locales; `APP_HOST` es solo para el browser externo. |
-| `AUTOSTART_APPS=false` por defecto | En desarrollo lanzar todo al inicio ralentiza el arranque. En servidor se activa explícitamente. |
-| Backend inline (WS_A_TEXTO) | El router FastAPI de WS_A_TEXTO se monta dentro del gateway (`app.include_router(router, prefix='/api/sound-catch/api')`). Elimina un subprocess y un puerto extra. Válido cuando el backend es Python/FastAPI y puede importarse como módulo. |
-| `??` vs `||` en env vars de cliente | `VITE_API_URL=` en `.env` produce `""` en el bundle. `"" ?? fallback` = `""` (bug). `"" \|\| fallback` = fallback (fix). Usar siempre `\|\|` para valores que pueden ser string vacío. |
-| `Cache-Control: no-cache` en index.html | Evita que el browser sirva el HTML obsoleto tras un rebuild. Los assets con hash son inmutables y se cachean 1 año. Elimina la necesidad de Ctrl+Shift+R después de actualizar. |
-| Limpieza de caché en startup | `launcher_ui.py` borra `__pycache__` y `node_modules/.vite/` antes de arrancar el gateway — garantiza código fresco sin mantenimiento manual. |
-| `/api/shutdown-portal` en gateway | Único endpoint que para subprocesos Y apaga el propio uvicorn. Necesario porque uvicorn no puede terminar el proceso padre desde un endpoint normal sin `os._exit()`. |
 
 ---
 
@@ -713,25 +385,23 @@ Tokens clave:
 | 2026-06-10 | v0.1: Proyecto iniciado. CLAUDE.md + DESIGN_SYSTEM.md. Estructura base. |
 | 2026-06-10 | v0.2: Portal shell construido. Nav pills, AppFrame, Dashboard, 4 apps en registry. |
 | 2026-06-11 | **FASE 0:** Portal Launcher (`portal-launcher/launcher.py`) — Flask :4999, `APP_CONFIGS`, launch/status/stop, `_kill_port()`, `.env` con `ALLOWED_ORIGINS`. |
-| 2026-06-11 | **FASE 1:** Integración Bandas Salariales en iframe. `IN_PORTAL` en Layout.tsx (oculta AppBar + Drawer). `handleConfirmSalir` con postMessage. `CssBaseline` condicional en App.tsx. CORS ASP.NET. |
-| 2026-06-11 | **FASE 1:** Salir Reporte DevOps — `handleSalir` reemplaza `window.confirm()` + `window.close()` con `apiSalir()` + postMessage. |
-| 2026-06-11 | **FASE 1:** Job Matcher vanilla — `IN_PORTAL` script en `index.html` oculta `.hdr`. `doExit()` usa postMessage. |
-| 2026-06-11 | **FASE 2:** React 19.2.7 + Vite 8.0.16 + @vitejs/plugin-react 6.0.2 en portal y Reporte DevOps. Vitest 4.1.8 (fix incompatibilidad ESM). Tests: 82/82. |
-| 2026-06-12 | **FASE 3:** Job Matcher migrado de vanilla HTML+JS a React 19 + Vite. Nueva app en `JOB_MATCHER/frontend/` puerto :5003. Backend queda API pura en :5002 (`express.static` removido). Launcher actualizado (dos procesos). `ALLOWED_APP_ORIGINS` :5002 → :5003. |
-| 2026-06-12 | **FASE 4:** Bandas Salariales — MUI completamente eliminado (`@mui/material`, `@mui/icons-material`, `@emotion/*`). Todos los componentes migrados a HTML + CSS plano DS. `index.css` reescrito con tokens DS y clases reutilizables. `theme.ts` simplificado. `tsc --noEmit` + `vite build` limpios. 55 paquetes MUI/Emotion removidos. |
-| 2026-06-12 | **FASE 5:** Vitest 4.x añadido a las 3 apps del ecosistema. Reporte DevOps: `header.test.tsx` (17 tests) + `client.test.ts` (26 tests) = **43/43**. Job Matcher: `stepbar.test.tsx` (26 tests) + `uploadzone.test.tsx` (31 tests) = **57/57**. Bandas Salariales: `theme.test.ts` (51 tests) + `components.test.tsx` (45 tests) = **96/96**. Total ecosistema: **196 tests** (82 portal + 43 RDO + 57 JM + 96 BS). |
-| 2026-06-12 | **FASE 6:** Survey Analytics construida. ASP.NET Core :5055 + React 19 Vite :5176. SurveyMonkey API v3 (Bearer token). Dashboard KPIs + buscador + SurveyCards. SurveyDetail con BarChart recharts. Vitest: `header.test.tsx` (20) + `surveycard.test.tsx` (17) = **37/37**. Survey `status: 'active'` en registry. Portal: 111/111 tests. Total ecosistema: **315 tests**. |
-| 2026-06-12 | **FASE 7:** Hosted deployment — eliminación de `localhost` hardcodeado en todos los paths. `VITE_HOST` controla host en portal shell (registry, launcher client, ALLOWED_APP_ORIGINS). `VITE_PORTAL_URL` en cada frontend de app para destino de postMessage. CORS configurable vía env vars en todos los backends. Launcher escucha en `0.0.0.0`. `AUTOSTART_APPS` lanza todas las apps al iniciar. UI flotante (`launcher_ui.py`) lee `PORTAL_URL` del `.env`. `.env.example` añadido a todos los frontends. 24 archivos · 111/111 tests. |
-| 2026-06-12 | **RDO orgs dinámicas + Consultar:** Reporte DevOps — `/api/organizaciones` consulta Azure DevOps en tiempo real (perfil PAT → cuentas). Fallback a `AZURE_DEVOPS_ORGS` en `.env`. Orgs se cargan automáticamente al activarse la app (`loadingOrgs=true` al montar). `/api/organizaciones/refresh` eliminado. Botón **[Consultar]** a la derecha del dropdown de Proyectos (reemplaza auto-load al seleccionar). `apiOrgsRefresh` eliminado de `client.ts`. RDO tests: **42/42** (−1). |
-| 2026-06-12 | **RDO sprint cards:** Nuevo endpoint `GET /api/sprints/<org>/<proyecto>` → `SprintsResult { current, anterior, futuros }`. Helpers: `ESTADOS_CERRADOS`, `_wiql_post` (charset UTF-8, sin `[System.TeamProject]`), `get_resumen_sprint`, `get_tc_ids_por_iteracion`, `get_testplan_progress` (paginación `x-ms-continuationtoken`). Frontend: componente `SprintCard` + 3 tarjetas (Sprint Actual verde, Sprint Anterior naranja, Sprints Futuros). Nuevas interfaces TS: `WorkItemsResumen`, `TestPlanProgress`, `SprintData`, `SprintsResult`. `apiSprints()` en client.ts. Historial siempre visible; logs expandibles. Total ecosistema: **343 tests** (111+42+57+96+37). |
-| 2026-06-16 | **Gateway + fix iframe:** `portal_server.py` (FastAPI/uvicorn) punto de entrada unificado en `:5174`. Apps servidas en `/apps/{id}/`. Fix bug crítico: `vite.config.js` en Bandas Salariales (sin `base`) overrideaba `vite.config.ts` con prioridad en resolución Vite — assets sin prefijo → gateway servía `index.html` del portal para los JS → `<script type="module">` rechazado por MIME → app no cargaba. Fix: eliminado `vite.config.js`, rebuild Bandas `dist/`. `AppFrame.tsx`: `isGatewayUrl = app.url.startsWith('/apps/')` para preflight same-origin sin `no-cors` y detección correcta de 503. `launcher_ui.py`: `_startup_sequence` reescrito para arrancar `portal_server.py` directamente y esperar `/api/health` (hasta 45s). 5 assertions RDO `client.test.ts` actualizadas a rutas `/api/reporte-devops/...`. **Total: 377/377 tests** (Portal 127 · Bandas 114 · RDO 42 · JM 57 · Survey 37). |
-| 2026-06-19 | **WS_A_TEXTO integrado (ex Sound Catch):** App de transcripción de audio multi-formato con IA (Whisper). Backend FastAPI montado **inline** en el gateway (`include_router` en `/api/sound-catch/api/`). Frontend React 19 + Vite :5009. `VITE_API_URL=` (vacío) + `??` causaba fetch a `/api/info` (sin prefijo) → 404. Fix: `\|\|` en client.ts. Proxy vite.config.ts corregido. `client.test.ts` (11 tests). `sound-catch` en `APP_REGISTRY` con `url: '/apps/sound-catch/'`. `ALLOWED_APP_ORIGINS` actualizado con `:5009`. |
-| 2026-06-19 | **Fix bugs de usuario (6):** (1) WS_A_TEXTO — ver entrada anterior. (2) Survey "JSON inválido" → ASP.NET Core `UseResponseCompression` enviaba Brotli; `portal_server.py` excluye `accept-encoding` de headers reenviados — el gateway descomprime por su cuenta. (3) JM "JSON inválido" en upload → Node.js `compression()` middleware; mismo fix del gateway. (4) Bandas "no carga front" → `BrowserRouter` sin `basename`; Fix: `basename="/apps/bandas-salariales"`. (5) RDO — timing issue, sin cambio de código. (6) Pantalla de carga baja calidad en 4K → `windll.shcore.SetProcessDpiAwareness(2)` + fallback. Nuevos tests: `JM/client.test.ts` (24) + `Survey/client.test.ts` (25). **Total: 426/426 tests** (Portal 127 · Bandas 114 · RDO 42 · JM 81 · Survey 62). |
-| 2026-06-19 | **UX: cards y botón Salir.** (1) Cards del Dashboard ya no abren la app al hacer click — solo el botón **Abrir →** abre. Eliminada clase `.app-card.clickable` de CSS. (2) Botón **Salir** del portal cierra todo: llama `/api/shutdown-portal` (detiene todos los subprocesos + `os._exit(0)` en el gateway) y luego `window.close()`. Eliminada función `stopAll()` de `App.tsx` (era huérfana). +1 test en `components.test.tsx`. `dist/` reconstruido. **Total: 128/128 tests**. |
-| 2026-06-19 | **Cache HTTP + limpieza en startup.** `portal_server.py`: `index.html` se sirve con `Cache-Control: no-cache, no-store, must-revalidate` (portal y todas las apps) — el browser siempre re-valida sin necesitar Ctrl+Shift+R. Assets en `assets/` con hash de contenido: `Cache-Control: public, max-age=31536000, immutable`. `launcher_ui.py`: paso nuevo "Limpiando caché…" (#2 en secuencia) — borra `__pycache__/` en raíz + `portal-launcher/` y `node_modules/.vite/` antes de iniciar el gateway. `START_UNIFIED.bat` + `requirements_gateway.txt` committed. **Total: 128/128 tests** (Portal 128 · Bandas 114 · RDO 42 · JM 81 · Survey 62 = **427 total**). |
-| 2026-06-19 | **Fix bugs de usuario (4):** (1) **JM timeout**: httpx read timeout 60s → 300s para soportar Claude API (2-5 min). Nuevo `except httpx.TimeoutException` → HTTP 504. +3 tests en `JM/client.test.ts`. (2) **Survey no inicia**: `dist/assets/` estaba vacío por build fallido — causa raíz: `client.test.ts` usaba `.at(-1)` que requiere ES2022, pero `tsconfig.app.json` tenía `target: ES2020`. Fix: `target + lib → ES2022`. Rebuild exitoso (4 chunks). (3) **WS_A_TEXTO no disponible**: `dist/` no existía — jamás se había construido. Primer build del frontend. `VITE_API_URL=` (vacío) → bundle usa `/api/sound-catch` (gateway path). (4) **Salir del portal no funciona**: `window.close()` bloqueado por browsers cuando la tab no fue abierta con `window.open()`. Fix: reemplazar `shutdown-portal + window.close()` con `stop-all + overlay React` ("Sesión finalizada" + "← Volver al portal"). +2 tests en `components.test.tsx`. **Total: 433/433 tests** (Portal 129 · Bandas 116 · RDO 42 · JM 84 · Survey 62). |
-| 2026-06-25 | **Rename Sound Catch → WS_A_TEXTO:** Carpeta renombrada de `C:\Esteban CFOTech\Sound Catch\` (repo separado) a `WS_A_TEXTO\` (dentro del repo del portal). Rutas en `portal_server.py` actualizadas: `APPS_ROOT / 'Sound Catch'` → `BASE_DIR / 'WS_A_TEXTO'`. Nombre en registry: `'Sound Catch'` → `'WS a Texto'`. Tag `WhatsApp` añadido. `sys.path` del router inline actualizado. Comentarios y CLAUDE.md actualizados. **129/129 tests**. |
-| 2026-06-25 | **WS a Texto → WA a Texto + header fix:** Nombre en registry actualizado a `'WA a Texto'`. Logo `WS` → `WA`. Título HTML: `"WA a Texto — Transcripción de Audio"`. `category: 'Productividad'` → `''` (sin categoría). `Dashboard.tsx` actualizado: `{app.category && ...}` para renderizar condicional. Test `registry.test.ts` dividido en `required` (truthy) y `present` (solo existencia) para tolerar `category: ''`. Test `wa-a-texto` verifica `name === 'WA a Texto'` y `category === ''`. **129/129 tests**. |
-| 2026-06-25 | **WA a Texto header fix (IN_PORTAL):** `Header.tsx` reescrito: `if (IN_PORTAL) return null` — dentro del portal el header propio no se muestra (el portal provee "← Volver"). En modo standalone: header con logo `WA`, título `WA a Texto` y botón "Salir" (`window.close()`). Mismo patrón que Bandas Salariales y Reporte DevOps. |
-| 2026-06-25 | **Job Matcher — fix tarjetas desniveladas:** Filenames largos en upload zones causaban altura de tarjeta variable. Fix CSS en `JOB_MATCHER/frontend/src/index.css`: `.upload-zone .uz-file` con `max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 8px`. Atributo `title={filename}` en `UploadZone.tsx` para ver nombre completo en hover. **84/84 tests**. |
-| 2026-06-25 | **WA a Texto → Audio a Texto:** Nombre final en registry `'Audio a Texto'`. Logo `WA` → `🎙`. Título HTML actualizado. Test registry actualizado: `name === 'Audio a Texto'`. Rebuild portal dist. **129/129 tests**. |
+| 2026-06-11 | **FASE 1:** Integración Bandas Salariales + Reporte DevOps + Job Matcher en iframe. `IN_PORTAL` + postMessage en las 3 apps. CORS configurado. |
+| 2026-06-11 | **FASE 2:** React 19.2.7 + Vite 8.0.16 + @vitejs/plugin-react 6.0.2. Vitest 4.1.8 (fix ESM). **82/82 tests**. |
+| 2026-06-12 | **FASE 3:** Job Matcher migrado de vanilla a React 19 + Vite :5003. Backend API pura. |
+| 2026-06-12 | **FASE 4:** Bandas Salariales — MUI eliminado completamente. Migrado a CSS plano DS. |
+| 2026-06-12 | **FASE 5:** Vitest 4.x en 3 apps. RDO 43 · JM 57 · BS 96. **Total: 196 tests**. |
+| 2026-06-12 | **FASE 6:** Survey Analytics. ASP.NET Core :5055 + React :5176. SurveyMonkey API v3. Recharts. **315 tests**. |
+| 2026-06-12 | **FASE 7:** Hosted deployment. `VITE_HOST` reemplaza `localhost` hardcodeado. `VITE_PORTAL_URL` en cada frontend. Launcher en `0.0.0.0`. **111/111 tests**. |
+| 2026-06-12 | **RDO orgs dinámicas + Consultar:** `/api/organizaciones` en tiempo real. Botón [Consultar] en dropdown Proyectos. **42/42 tests**. |
+| 2026-06-12 | **RDO sprint cards:** `GET /api/sprints/<org>/<proyecto>` → `SprintsResult`. Componente `SprintCard`. **343 tests total**. |
+| 2026-06-16 | **Gateway + fix iframe:** `portal_server.py` punto de entrada unificado :5174. Fix `vite.config.js` legacy (sin `base`) → assets roto en Bandas. `AppFrame`: `isGatewayUrl`. `launcher_ui.py` reescrito para arrancar gateway directo. **377/377 tests**. |
+| 2026-06-19 | **Audio a Texto integrado:** Backend FastAPI inline en gateway. Frontend React :5009. Fix `??` → `\|\|` en client.ts. **11 tests**. |
+| 2026-06-19 | **Fix bugs (6):** Survey Brotli, JM compression, Bandas `BrowserRouter basename`, DPI 4K. **426/426 tests**. |
+| 2026-06-19 | **UX: cards + Salir:** Cards no abren al click (solo botón Abrir →). Salir: `stop-all` + overlay React. **433/433 tests**. |
+| 2026-06-19 | **Cache HTTP + startup:** `index.html` no-cache, assets immutable. `launcher_ui.py` limpia `__pycache__` y `.vite/`. **427 total (433 portal)**. |
+| 2026-06-19 | **Fix bugs (4):** JM timeout 300s, Survey tsconfig ES2022, WS_A_TEXTO primer build, Salir overlay. **433/433 tests**. |
+| 2026-06-25 | **Rename Sound Catch → WS_A_TEXTO:** Carpeta + rutas + registry + sys.path. **129/129 tests**. |
+| 2026-06-25 | **WA a Texto header fix:** `Header.tsx` con `if (IN_PORTAL) return null`. `category: ''` → test `present`. **129/129 tests**. |
+| 2026-06-25 | **Audio a Texto (rename final):** `'WA a Texto'` → `'Audio a Texto'`. Logo `🎙`. **129/129 tests**. |
+| 2026-06-25 | **Job Matcher fix tarjetas:** CSS `text-overflow: ellipsis` en `.uz-file`. `title={filename}`. **84/84 tests JM**. |
+| 2026-06-26 | **Proyectos Activos — Fases 1-3 completas:** Fase 1: DB schema PostgreSQL + ETL CLI (`ingest.py`). Fase 2: Frontend React 19 completo — `SemaforoGeneral` (semáforo por proyecto + métricas DC + toggle ACUMULADO/MENSUAL) + `EjercicioEconomico` (drill-down por proyecto + Recharts LineChart historial). Fase 3: Integración portal — `apps.ts` `status: 'active'`, `portal_server.py` `APPS` dict :5010/:5011, `App.tsx` `ALLOWED_APP_ORIGINS` :5011, `registry.test.ts` invariant. ETL via API: `POST /api/ingest` (multipart `.xlsx` → `ingest_from_file()` → `IngestResult`) + botón **📤 Subir Excel** en frontend (spinner + banner verde/rojo + recarga automática de períodos). Vitest 31/31 (`client.test.ts`): TDD RED→GREEN reveló que `VITE_API_URL=/api/proyectos-activos` se carga en tests → URLs reales son `/api/proyectos-activos/api/*`. `ARQUITECTURA.md` creado — extrae ecosistema, gateway, postMessage, decisiones técnicas. **Portal: 141/141 · Proyectos Activos: 31/31**. |

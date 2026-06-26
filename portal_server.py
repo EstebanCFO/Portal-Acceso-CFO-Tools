@@ -137,6 +137,21 @@ APPS: dict[str, dict] = {
         'frontend_port':   5176,
         'frontend_dist':   BASE_DIR / 'SURVEY' / 'survey-frontend' / 'dist',
     },
+    'proyectos-activos': {
+        # Backend FastAPI :5010 — SQLAlchemy + PostgreSQL
+        'backend_cmd':          f'"{_PY}" app.py',
+        'backend_dir':          BASE_DIR / 'PROYECTOS_ACTIVOS' / 'backend',
+        'backend_port':         5010,
+        'backend_health':       'http://localhost:5010/api/health',
+        'backend_timeout':      20,
+        # path_prefix='': el gateway envía /api/... tal cual al backend
+        # (evita doble /api/api/ porque el frontend ya incluye /api en su base URL)
+        'backend_path_prefix':  '',
+        'frontend_cmd':         'npm run dev',
+        'frontend_dir':         BASE_DIR / 'PROYECTOS_ACTIVOS' / 'frontend',
+        'frontend_port':        5011,
+        'frontend_dist':        BASE_DIR / 'PROYECTOS_ACTIVOS' / 'frontend' / 'dist',
+    },
 }
 
 # ── Subprocess management ─────────────────────────────────────────────────────

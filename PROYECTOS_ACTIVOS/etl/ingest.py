@@ -2,15 +2,10 @@
 ingest.py — ETL principal: Excel → PostgreSQL
 
 Uso:
-    python ingest.py --file "Proyectos Activos 2026.xlsx" --period 2026-06
+    python ingest.py --file "Proyectos Activos 2026.xlsx"
     python ingest.py --file "Proyectos Activos 2026.xlsx" --dry-run
 
-Pasos:
-    1. Parsear solapa SEMAFORO GENERAL
-    2. Parsear todas las solapas [NOMBRE] REAL
-    3. Upsert de entidades maestras (clients, projects, roles, contract_types, cost_centers, employees)
-    4. Insert de datos transaccionales (resource_monthly_costs, project_financials, project_monthly_history)
-    5. Insert de semaforo_monthly_metrics
+Retorna stats dict cuando se llama vía ingest_from_file().
 """
 
 from __future__ import annotations
@@ -20,10 +15,9 @@ import sys
 from datetime import datetime
 from typing import Optional
 
-# Agregar el directorio padre al path para importar los parsers
 sys.path.insert(0, os.path.dirname(__file__))
 
-from parsers.semaforo     import parse_semaforo_general
+from parsers.semaforo      import parse_semaforo_general, SemaforoRow
 from parsers.proyecto_real import parse_all_real_sheets, ProyectoReal
 
 try:
@@ -32,16 +26,11 @@ try:
     HAS_PSYCOPG2 = True
 except ImportError:
     HAS_PSYCOPG2 = False
-    print('[WARN] psycopg2 no encontrado. Ejecutar: pip install psycopg2-binary')
 
 
-# ---------------------------------------------------------------------------
-# Config
-# ---------------------------------------------------------------------------
+# ── Config ────────────────────────────────────────────────────────────────────
 
 def get_db_url() -> str:
-    """Lee DATABASE_URL del entorno o .env del backend."""
-    # Intentar leer del .env del backend
     env_path = os.path.join(os.path.dirname(__file__), '..', 'backend', '.env')
     if os.path.exists(env_path):
         with open(env_path) as f:
@@ -55,15 +44,11 @@ def get_db_url() -> str:
     )
 
 
-# ---------------------------------------------------------------------------
-# Helpers de upsert
-# ---------------------------------------------------------------------------
+# ── Upserts de entidades maestras ─────────────────────────────────────────────
 
 def upsert_client(cur, name: str) -> int:
-    """Inserta o actualiza un cliente. Retorna su id."""
     cur.execute("""
-        INSERT INTO clients (name)
-        VALUES (%s)
+        INSERT INTO clients (name) VALUES (%s)
         ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
         RETURNING id
     """, (name,))
@@ -75,9 +60,9 @@ def upsert_project(cur, client_id: int, name: str, sheet_name: str, tipo: str = 
         INSERT INTO projects (client_id, name, sheet_name, tipo)
         VALUES (%s, %s, %s, %s)
         ON CONFLICT (sheet_name) DO UPDATE
-            SET name = EXCLUDED.name,
+            SET name      = EXCLUDED.name,
                 client_id = EXCLUDED.client_id,
-                tipo = EXCLUDED.tipo
+                tipo      = EXCLUDED.tipo
         RETURNING id
     """, (client_id, name, sheet_name, tipo))
     return cur.fetchone()[0]
@@ -93,10 +78,8 @@ def upsert_cost_center(cur, code_ceco: str) -> None:
 
 def upsert_role(cur, name: str) -> int:
     cur.execute("""
-        INSERT INTO roles (name)
-        VALUES (%s)
-        ON CONFLICT (name) DO NOTHING
-        RETURNING id
+        INSERT INTO roles (name) VALUES (%s)
+        ON CONFLICT (name) DO NOTHING RETURNING id
     """, (name,))
     row = cur.fetchone()
     if row:
@@ -107,10 +90,8 @@ def upsert_role(cur, name: str) -> int:
 
 def upsert_contract_type(cur, description: str) -> int:
     cur.execute("""
-        INSERT INTO contract_types (description)
-        VALUES (%s)
-        ON CONFLICT (description) DO NOTHING
-        RETURNING id
+        INSERT INTO contract_types (description) VALUES (%s)
+        ON CONFLICT (description) DO NOTHING RETURNING id
     """, (description,))
     row = cur.fetchone()
     if row:
@@ -125,45 +106,31 @@ def upsert_employee(cur, dni: str, first_name: str, last_name: str,
         INSERT INTO employees (dni, first_name, last_name, role_id, contract_type_id)
         VALUES (%s, %s, %s, %s, %s)
         ON CONFLICT (dni) DO UPDATE
-            SET first_name = EXCLUDED.first_name,
-                last_name  = EXCLUDED.last_name,
-                role_id    = EXCLUDED.role_id,
+            SET first_name       = EXCLUDED.first_name,
+                last_name        = EXCLUDED.last_name,
+                role_id          = EXCLUDED.role_id,
                 contract_type_id = EXCLUDED.contract_type_id
     """, (dni, first_name, last_name, role_id, contract_type_id))
 
 
-# ---------------------------------------------------------------------------
-# Ingesta principal
-# ---------------------------------------------------------------------------
+# ── Ingesta de una solapa REAL ────────────────────────────────────────────────
 
-def ingest_proyecto_real(cur, pr: ProyectoReal, dry_run: bool = False) -> None:
-    """Inserta todos los datos de un ProyectoReal en la base de datos."""
-
-    # 1. Upsert cliente y proyecto
-    if dry_run:
-        print(f'  [DRY] Upsert cliente: {pr.header.client_name}')
-        print(f'  [DRY] Upsert proyecto: {pr.header.project_name} ({pr.header.sheet_name})')
-        return
-
+def ingest_proyecto_real(cur, pr: ProyectoReal) -> int:
+    """Inserta todos los datos de un ProyectoReal. Retorna el project_id."""
     client_id  = upsert_client(cur, pr.header.client_name or 'DESCONOCIDO')
     project_id = upsert_project(cur, client_id, pr.header.project_name, pr.header.sheet_name)
 
-    # CeCo del header
     if pr.header.code_ceco:
         upsert_cost_center(cur, pr.header.code_ceco)
 
-    # 2. Recursos
     for res in pr.resources:
-        # Entidades maestras del recurso
-        role_id            = upsert_role(cur, res.role_name or 'Sin Perfil')
-        contract_type_id   = upsert_contract_type(cur, res.contract_type or 'RELAC DEPEND')
+        role_id          = upsert_role(cur, res.role_name or 'Sin Perfil')
+        contract_type_id = upsert_contract_type(cur, res.contract_type or 'RELAC DEPEND')
         upsert_employee(cur, res.dni, res.first_name, res.last_name, role_id, contract_type_id)
 
-        # CeCo del recurso
         ceco = res.code_ceco or pr.header.code_ceco or 'SIN_CECO'
         upsert_cost_center(cur, ceco)
 
-        # Costo mensual
         cur.execute("""
             INSERT INTO resource_monthly_costs (
                 employee_dni, project_id, code_ceco, period_date,
@@ -172,16 +139,16 @@ def ingest_proyecto_real(cur, pr: ProyectoReal, dry_run: bool = False) -> None:
                 extra_hours_cost, extra_hours_ratio
             ) VALUES (%s,%s,%s,%s, %s,%s,%s,%s, %s,%s,%s, %s,%s)
             ON CONFLICT (employee_dni, project_id, period_date) DO UPDATE SET
-                code_ceco            = EXCLUDED.code_ceco,
-                total_hours          = EXCLUDED.total_hours,
-                months_worked        = EXCLUDED.months_worked,
-                monthly_hours        = EXCLUDED.monthly_hours,
-                extra_hours          = EXCLUDED.extra_hours,
-                monthly_salary       = EXCLUDED.monthly_salary,
-                total_monthly_cost   = EXCLUDED.total_monthly_cost,
+                code_ceco             = EXCLUDED.code_ceco,
+                total_hours           = EXCLUDED.total_hours,
+                months_worked         = EXCLUDED.months_worked,
+                monthly_hours         = EXCLUDED.monthly_hours,
+                extra_hours           = EXCLUDED.extra_hours,
+                monthly_salary        = EXCLUDED.monthly_salary,
+                total_monthly_cost    = EXCLUDED.total_monthly_cost,
                 monthly_resource_cost = EXCLUDED.monthly_resource_cost,
-                extra_hours_cost     = EXCLUDED.extra_hours_cost,
-                extra_hours_ratio    = EXCLUDED.extra_hours_ratio
+                extra_hours_cost      = EXCLUDED.extra_hours_cost,
+                extra_hours_ratio     = EXCLUDED.extra_hours_ratio
         """, (
             res.dni, project_id, ceco, pr.header.period_date,
             res.total_hours, res.months_worked, res.monthly_hours, res.extra_hours,
@@ -189,7 +156,6 @@ def ingest_proyecto_real(cur, pr: ProyectoReal, dry_run: bool = False) -> None:
             res.extra_hours_cost, res.extra_hours_ratio,
         ))
 
-    # 3. Financiero
     if pr.financials:
         f = pr.financials
         cur.execute("""
@@ -201,16 +167,16 @@ def ingest_proyecto_real(cur, pr: ProyectoReal, dry_run: bool = False) -> None:
                 semaforo_value, project_result
             ) VALUES (%s,%s, %s,%s,%s, %s,%s, %s,%s,%s, %s,%s)
             ON CONFLICT (project_id, period_date) DO UPDATE SET
-                revenue                  = EXCLUDED.revenue,
-                sale_price_with_vat      = EXCLUDED.sale_price_with_vat,
-                monthly_sale_price       = EXCLUDED.monthly_sale_price,
-                commercial_margin_value  = EXCLUDED.commercial_margin_value,
-                result_percentage        = EXCLUDED.result_percentage,
-                commercial_commission    = EXCLUDED.commercial_commission,
-                peaje_wht_percentage     = EXCLUDED.peaje_wht_percentage,
-                peaje_wht_value          = EXCLUDED.peaje_wht_value,
-                semaforo_value           = EXCLUDED.semaforo_value,
-                project_result           = EXCLUDED.project_result
+                revenue                 = EXCLUDED.revenue,
+                sale_price_with_vat     = EXCLUDED.sale_price_with_vat,
+                monthly_sale_price      = EXCLUDED.monthly_sale_price,
+                commercial_margin_value = EXCLUDED.commercial_margin_value,
+                result_percentage       = EXCLUDED.result_percentage,
+                commercial_commission   = EXCLUDED.commercial_commission,
+                peaje_wht_percentage    = EXCLUDED.peaje_wht_percentage,
+                peaje_wht_value         = EXCLUDED.peaje_wht_value,
+                semaforo_value          = EXCLUDED.semaforo_value,
+                project_result          = EXCLUDED.project_result
         """, (
             project_id, pr.header.period_date,
             f.monthly_sale_price, f.sale_price_with_vat, f.monthly_sale_price,
@@ -219,7 +185,6 @@ def ingest_proyecto_real(cur, pr: ProyectoReal, dry_run: bool = False) -> None:
             f.semaforo_value, f.project_result,
         ))
 
-    # 4. Historial mensual
     for h in pr.history:
         cur.execute("""
             INSERT INTO project_monthly_history (
@@ -235,87 +200,208 @@ def ingest_proyecto_real(cur, pr: ProyectoReal, dry_run: bool = False) -> None:
             h.billing, h.commercial_margin, h.result_percentage,
         ))
 
+    return project_id
+
+
+# ── Inserción de Semáforo (resuelve IDs por nombre) ──────────────────────────
+
+def insert_semaforo_rows(cur, rows: list[SemaforoRow], semaforo_type: str) -> dict:
+    """
+    Inserta filas del semáforo en semaforo_monthly_metrics.
+    Resuelve project_id buscando por nombre exacto (case-insensitive).
+    Retorna stats: { matched, unmatched, unmatched_names }
+    """
+    # Mapa nombre_upper → project_id
+    cur.execute("SELECT id, UPPER(TRIM(name)) FROM projects WHERE name != ''")
+    proj_map: dict[str, int] = {row[1]: row[0] for row in cur.fetchall()}
+
+    matched   = 0
+    unmatched = 0
+    unmatched_names: list[str] = []
+
+    for row in rows:
+        key        = row.project_name.upper().strip()
+        project_id = proj_map.get(key)
+
+        if project_id is None:
+            # Intentar coincidencia parcial (el nombre del semáforo puede ser subconjunto)
+            for proj_name_upper, pid in proj_map.items():
+                if key in proj_name_upper or proj_name_upper in key:
+                    project_id = pid
+                    break
+
+        if project_id is None:
+            unmatched += 1
+            unmatched_names.append(row.project_name)
+            continue
+
+        cur.execute("""
+            INSERT INTO semaforo_monthly_metrics (
+                project_id, period_date, semaforo_type,
+                resultado_real, resultado_esperado, variacion_pct,
+                accion_sugerida, facturacion_real
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (project_id, period_date, semaforo_type) DO UPDATE SET
+                resultado_real     = EXCLUDED.resultado_real,
+                resultado_esperado = EXCLUDED.resultado_esperado,
+                variacion_pct      = EXCLUDED.variacion_pct,
+                accion_sugerida    = EXCLUDED.accion_sugerida,
+                facturacion_real   = EXCLUDED.facturacion_real
+        """, (
+            project_id, row.period_date, semaforo_type,
+            row.resultado_real, row.resultado_esperado, row.variacion_pct,
+            row.accion_sugerida, row.facturacion_real,
+        ))
+        matched += 1
+
+    return {'matched': matched, 'unmatched': unmatched, 'unmatched_names': unmatched_names}
+
+
+def insert_dc_metrics(cur, dc, semaforo_type: str, period_date: str) -> None:
+    """Inserta las métricas globales del DC (project_id = NULL)."""
+    if dc is None:
+        return
+    cur.execute("""
+        INSERT INTO semaforo_monthly_metrics (
+            project_id, period_date, semaforo_type,
+            resultado_comercial, resultado_comercial_pct,
+            resultado_comercial_neto_bench, resultado_comercial_neto_bench_pct,
+            costo_total_bench, costo_bench_manpower, costo_bench_dc,
+            recursos_delivery_center, total_recursos_bench
+        ) VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (project_id, period_date, semaforo_type) DO NOTHING
+    """, (
+        period_date, semaforo_type,
+        getattr(dc, 'resultado_comercial', None),
+        getattr(dc, 'resultado_comercial_pct', None),
+        getattr(dc, 'resultado_comercial_neto_bench', None),
+        getattr(dc, 'resultado_comercial_neto_bench_pct', None),
+        getattr(dc, 'costo_total_bench', None),
+        getattr(dc, 'costo_bench_manpower', None),
+        getattr(dc, 'costo_bench_dc', None),
+        getattr(dc, 'recursos_delivery_center', None),
+        getattr(dc, 'total_recursos_bench', None),
+    ))
+
+
+# ── Ingesta principal (retorna stats) ─────────────────────────────────────────
+
+def ingest_from_file(excel_path: str, dry_run: bool = False) -> dict:
+    """
+    Corre el ETL completo y retorna un dict con estadísticas.
+    Úsalo desde la API o tests — no imprime a stdout.
+    """
+    from parsers.semaforo      import parse_semaforo_general
+    from parsers.proyecto_real import parse_all_real_sheets
+
+    semaforo  = parse_semaforo_general(excel_path)
+    proyectos = parse_all_real_sheets(excel_path)
+
+    stats = {
+        'semaforo_acumulado':  len(semaforo.acumulado_rows),
+        'semaforo_mensual':    len(semaforo.mensual_rows),
+        'solapas_real':        len(proyectos),
+        'recursos_total':      sum(len(p.resources) for p in proyectos),
+        'semaforo_matched':    0,
+        'semaforo_unmatched':  0,
+        'unmatched_names':     [],
+        'dry_run':             dry_run,
+        'period':              semaforo.acumulado_rows[0].period_date if semaforo.acumulado_rows else None,
+    }
+
+    if dry_run:
+        return stats
+
+    if not HAS_PSYCOPG2:
+        raise RuntimeError('psycopg2 no instalado: pip install psycopg2-binary')
+
+    db_url = get_db_url()
+    conn   = psycopg2.connect(db_url)
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                # 1. Solapas REAL (proyectos, recursos, financiero, historial)
+                for pr in proyectos:
+                    ingest_proyecto_real(cur, pr)
+
+                # 2. Semáforo ACUMULADO
+                st_acum = insert_semaforo_rows(cur, semaforo.acumulado_rows, 'ACUMULADO')
+                stats['semaforo_matched']   += st_acum['matched']
+                stats['semaforo_unmatched'] += st_acum['unmatched']
+                stats['unmatched_names']    += st_acum['unmatched_names']
+
+                # 3. Semáforo MENSUAL
+                st_mens = insert_semaforo_rows(cur, semaforo.mensual_rows, 'MENSUAL')
+                stats['semaforo_matched']   += st_mens['matched']
+                stats['semaforo_unmatched'] += st_mens['unmatched']
+                stats['unmatched_names']    += st_mens['unmatched_names']
+
+                # 4. Métricas DC (project_id NULL)
+                if semaforo.dc_metrics:
+                    period = (semaforo.acumulado_rows[0].period_date
+                              if semaforo.acumulado_rows else '2026-01-01')
+                    insert_dc_metrics(cur, semaforo.dc_metrics, 'ACUMULADO', period)
+                    insert_dc_metrics(cur, semaforo.dc_metrics, 'MENSUAL',   period)
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    return stats
+
+
+# ── CLI (uso manual) ──────────────────────────────────────────────────────────
 
 def run_ingestion(excel_path: str, dry_run: bool = False) -> None:
-    """Punto de entrada principal del ETL."""
+    """Wrapper CLI con prints."""
     print(f'\n{"="*60}')
     print(f'ETL Proyectos Activos — {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
     print(f'Archivo: {excel_path}')
     print(f'Modo:    {"DRY RUN (sin escritura)" if dry_run else "PRODUCCIÓN"}')
     print('='*60)
 
-    # 1. Parsear semáforo
-    print('\n[1/3] Parseando SEMAFORO GENERAL...')
-    semaforo = parse_semaforo_general(excel_path)
+    from parsers.semaforo      import parse_semaforo_general
+    from parsers.proyecto_real import parse_all_real_sheets
+
+    semaforo  = parse_semaforo_general(excel_path)
+    proyectos = parse_all_real_sheets(excel_path)
+
+    print(f'\n[1/3] SEMAFORO GENERAL:')
     print(f'      → {len(semaforo.acumulado_rows)} proyectos acumulado')
     print(f'      → {len(semaforo.mensual_rows)} proyectos mensual')
 
-    # 2. Parsear solapas REAL
-    print('\n[2/3] Parseando solapas REAL...')
-    proyectos = parse_all_real_sheets(excel_path)
-    print(f'      → {len(proyectos)} solapas encontradas')
+    print(f'\n[2/3] Solapas REAL:')
     for p in proyectos:
-        n_res  = len(p.resources)
-        n_hist = len(p.history)
-        print(f'      · {p.header.sheet_name}: {n_res} recursos, {n_hist} filas historial')
+        print(f'      · {p.header.sheet_name}: {len(p.resources)} recursos, {len(p.history)} historial')
 
     if dry_run:
         print('\n[DRY RUN] No se escribió nada en la base de datos.')
         return
 
     if not HAS_PSYCOPG2:
-        print('\n[ERROR] psycopg2 no instalado. Ejecutar: pip install psycopg2-binary')
+        print('\n[ERROR] psycopg2 no instalado.')
         sys.exit(1)
 
-    # 3. Escribir en la base de datos
     print('\n[3/3] Escribiendo en PostgreSQL...')
-    db_url = get_db_url()
-    conn = psycopg2.connect(db_url)
     try:
-        with conn:
-            with conn.cursor() as cur:
-                for pr in proyectos:
-                    print(f'  → {pr.header.project_name}')
-                    ingest_proyecto_real(cur, pr, dry_run=False)
-
-                # Semáforo (simplificado — lógica completa en Fase 1 del backend)
-                print('  → Semáforo (pendiente: requiere IDs de proyectos ya insertados)')
-
+        stats = ingest_from_file(excel_path, dry_run=False)
+        print(f'  → {stats["solapas_real"]} proyectos REAL insertados')
+        print(f'  → Semáforo: {stats["semaforo_matched"]} coincidentes, {stats["semaforo_unmatched"]} sin match')
+        if stats['unmatched_names']:
+            print(f'  → Sin match: {", ".join(stats["unmatched_names"])}')
         print('\n✅ Ingesta completada exitosamente.')
     except Exception as e:
-        conn.rollback()
-        print(f'\n❌ Error durante la ingesta: {e}')
+        print(f'\n❌ Error: {e}')
         raise
-    finally:
-        conn.close()
 
-
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-        description='ETL: Excel Proyectos Activos → PostgreSQL'
-    )
-    parser.add_argument(
-        '--file', '-f',
-        default=os.path.join(os.path.dirname(__file__), '..', 'Proyectos Activos 2026.xlsx'),
-        help='Path al archivo Excel',
-    )
-    parser.add_argument(
-        '--period', '-p',
-        default=None,
-        help='Período a procesar (YYYY-MM). Si no se especifica, se detecta del archivo.',
-    )
-    parser.add_argument(
-        '--dry-run', '-n',
-        action='store_true',
-        help='Parsea sin escribir en la base de datos',
-    )
+    parser = argparse.ArgumentParser(description='ETL: Excel Proyectos Activos → PostgreSQL')
+    parser.add_argument('--file', '-f',
+        default=os.path.join(os.path.dirname(__file__), '..', 'Proyectos Activos 2026.xlsx'))
+    parser.add_argument('--dry-run', '-n', action='store_true')
     args = parser.parse_args()
-
-    run_ingestion(
-        excel_path = args.file,
-        dry_run    = args.dry_run,
-    )
+    run_ingestion(args.file, dry_run=args.dry_run)
