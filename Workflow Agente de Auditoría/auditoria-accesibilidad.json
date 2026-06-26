@@ -1,0 +1,17 @@
+  "breaches": [
+    "Falta foco visible y autenticación accesible (WCAG)",
+    "Sesión expira sin aviso (WCAG)",
+    "Formularios con lenguaje técnico poco claro (ONTI)",
+    "No implementado texto-a-voz en home banking y app móvil (BCRA)",
+    "Ausencia de capacitación en LSA y videollamadas con intérpretes (BCRA)"
+  ],
+  "action_plan": [
+    "Implementar reproductor de texto-a-voz en home banking y apps móviles",
+    "Incorporar autenticación accesible sin pruebas de memoria",
+    "Establecer servicio de videollamadas con intérpretes LSA en sucursales",
+    "Capacitar al personal en Lengua de Señas Argentina",
+    "Mejorar redacción clara y navegación inclusiva en formularios",
+    "Ajustar tiempos de espera con aviso y opción de extensión"
+  ],
+  "result": "Informe integral de compliance consolidado según WCAG 2.2, ONTI y BCRA A7517"
+}

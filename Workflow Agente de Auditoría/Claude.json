@@ -1,0 +1,29 @@
+{
+  "name": "Auditoría de Accesibilidad Financiera",
+  "description": "Agente que audita recursos digitales y presenciales de bancos y billeteras digitales según WCAG 2.2, ONTI y BCRA A7517.",
+  "category": "Compliance / Accesibilidad / Sector financiero",
+  "inputs": {
+    "types": ["URL", "APK", "Sitio", "Repositorio"],
+    "prompt": "¿Qué recurso deseas auditar?"
+  },
+  "analysis": {
+    "layers": [
+      { "name": "WCAG 2.2", "scope": "Validaciones técnicas internacionales" },
+      { "name": "ONTI", "scope": "Cumplimiento legal nacional" },
+      { "name": "BCRA A7517", "scope": "Requisitos regulatorios financieros" }
+    ]
+  },
+  "outputs": {
+    "formats": ["Markdown", "JSON"],
+    "markdown": { "sections": ["Checklist Integral","Brechas detectadas","Plan de acción","Resultado del agente"] },
+    "json": { "fields": ["input","analysis","checklist","breaches","action_plan","result"] }
+  },
+  "workflow": [
+    "Preguntar recurso a auditar",
+    "Ejecutar validaciones WCAG, ONTI, BCRA",
+    "Consolidar resultados en checklist",
+    "Identificar brechas",
+    "Generar plan de acción",
+    "Entregar informe en MD y JSON"
+  ]
+}
