@@ -3,6 +3,8 @@
 ## Propósito
 Auditar recursos digitales y presenciales de bancos y billeteras digitales según WCAG 2.2, ONTI y BCRA A7517.
 
+---
+
 ## Flujo de interacción
 
 ### FASE 0 — Inventario (SIEMPRE PRIMERO, sin excepciones)
@@ -38,8 +40,46 @@ Preguntar qué recurso auditar si no fue indicado (URL, APK, sitio, repo).
 ### FASE 2 — Análisis
 Ejecutar validaciones WCAG 2.2, ONTI y BCRA A7517 sobre cada archivo del inventario aprobado.
 
-### FASE 3 — Output
-Generar checklist integral con ✔️, ❌, ⚠️, N/A → informe en MD y JSON.
+---
+
+### FASE 3 — Output y guardado con historial
+
+#### 📁 Estructura de carpetas (SIEMPRE esta ruta, sin excepciones)
+
+```
+C:\Esteban CFOTech\Portal de Acceso\Workflow Agente de Auditoría\
+└── {nombre-app}\
+    ├── INFORME-{nombre-app}-YYYY-MM-DD.md       ← primera auditoría del día
+    ├── INFORME-{nombre-app}-YYYY-MM-DD.json
+    ├── INFORME-{nombre-app}-YYYY-MM-DD-v2.md    ← segunda auditoría del mismo día
+    ├── INFORME-{nombre-app}-YYYY-MM-DD-v2.json
+    └── ...                                        ← historial, nunca se pisa
+```
+
+#### Reglas de nombrado
+
+| Campo | Regla |
+|-------|-------|
+| `{nombre-app}` | Del nombre del repo / dominio de URL / nombre del APK, en kebab-case |
+| Fecha | `YYYY-MM-DD` en formato ISO |
+| Versión | Si el archivo del día ya existe → agregar `-v2`, `-v3`, etc. |
+| Nunca pisar | Verificar existencia antes de escribir, siempre |
+
+#### Derivar `{nombre-app}`
+
+- Repositorio "Web Institucional" → `Web-Institucional`
+- URL `bancogalicia.com.ar` → `bancogalicia`
+- URL `mercadopago.com.ar` → `mercadopago`
+- APK "BBVA Argentina" → `BBVA-Argentina`
+
+#### Al finalizar
+
+Confirmar al usuario la ruta exacta:
+```
+✅ Informe guardado en:
+   Workflow Agente de Auditoría\{nombre-app}\INFORME-{nombre-app}-YYYY-MM-DD.md
+   Workflow Agente de Auditoría\{nombre-app}\INFORME-{nombre-app}-YYYY-MM-DD.json
+```
 
 ---
 
@@ -64,5 +104,9 @@ Generar checklist integral con ✔️, ❌, ⚠️, N/A → informe en MD y JSON
 
 ---
 
-## Regla clave
-**Sin inventario aprobado → sin auditoría.** La Fase 0 no es opcional.
+## Reglas irrompibles
+
+1. **Sin inventario aprobado → sin auditoría.** La Fase 0 no es opcional.
+2. **Informes siempre en `Workflow Agente de Auditoría\{nombre-app}\`** — nunca en otra ruta.
+3. **Nunca pisar un informe existente** — agregar `-v2`, `-v3`, etc.
+4. **Nunca incluir PATs ni credenciales** en el output — redactarlos como `[PAT_REDACTED]`.

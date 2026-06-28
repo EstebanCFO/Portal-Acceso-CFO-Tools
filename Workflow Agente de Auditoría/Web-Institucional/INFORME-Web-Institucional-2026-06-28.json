@@ -1,0 +1,79 @@
+{
+  "input": {
+    "tipo": "repositorio",
+    "fuente": "Azure DevOps",
+    "organizacion": "SWF-CFO",
+    "repositorio": "Web Institucional",
+    "rama": "master",
+    "metodo": "analisis-estatico-en-memoria",
+    "fecha_auditoria": "2026-06-28"
+  },
+  "normativas": ["WCAG 2.2 AA", "ONTI Ley 26.653 / Disposicion 6/2019"],
+  "paginas_analizadas": [
+    "Innovation_hub.html",
+    "aviso-legal.html",
+    "busqueda_y_seleccion.html",
+    "contacto.html"
+  ],
+  "checklist": [
+    { "id": 1,  "normativa": "WCAG 1.1.1", "criterio": "Texto alternativo carruseles",    "paginas": ["Innovation_hub.html","busqueda_y_seleccion.html"], "estado": "FALLA",    "hallazgo": "alt='Imagen 1/2/3' generico y no descriptivo" },
+    { "id": 2,  "normativa": "WCAG 1.1.1", "criterio": "Alt en iconos CDN",               "paginas": ["Innovation_hub.html"],                             "estado": "PARCIAL", "hallazgo": "alt='Flecha', alt='Buscar' funcionales pero mejorables" },
+    { "id": 3,  "normativa": "WCAG 1.3.1", "criterio": "Landmark main ausente",           "paginas": ["todas"],                                           "estado": "FALLA",    "hallazgo": "Ninguna pagina tiene elemento <main>" },
+    { "id": 4,  "normativa": "WCAG 1.3.1", "criterio": "Header dinamico por JS",          "paginas": ["todas"],                                           "estado": "PARCIAL", "hallazgo": "div#header vacio cargado por script externo" },
+    { "id": 5,  "normativa": "WCAG 1.3.5", "criterio": "Autocomplete en formulario",      "paginas": ["contacto.html"],                                   "estado": "FALLA",    "hallazgo": "Campos name/email/tel/company sin atributo autocomplete" },
+    { "id": 6,  "normativa": "WCAG 2.1.1", "criterio": "Accesibilidad teclado copy icon", "paginas": ["contacto.html"],                                   "estado": "FALLA",    "hallazgo": "span onclick sin role=button ni tabindex" },
+    { "id": 7,  "normativa": "WCAG 2.2.2", "criterio": "Carrusel sin pausa",              "paginas": ["Innovation_hub.html","busqueda_y_seleccion.html"], "estado": "FALLA",    "hallazgo": "Auto-rotativo cada 3s sin control de pausa/stop" },
+    { "id": 8,  "normativa": "WCAG 2.4.1", "criterio": "Skip links ausentes",             "paginas": ["todas"],                                           "estado": "FALLA",    "hallazgo": "No existe enlace Saltar al contenido" },
+    { "id": 9,  "normativa": "WCAG 2.4.2", "criterio": "Titulo de pagina",                "paginas": ["todas"],                                           "estado": "PASA",     "hallazgo": "Titulos descriptivos presentes en todas las paginas" },
+    { "id": 10, "normativa": "WCAG 2.4.4", "criterio": "Texto de enlace descriptivo",     "paginas": ["aviso-legal.html"],                                "estado": "FALLA",    "hallazgo": "Texto del link es la URL cruda https://www.cfotechlatam.com/" },
+    { "id": 11, "normativa": "WCAG 3.1.1", "criterio": "Idioma declarado",                "paginas": ["todas"],                                           "estado": "PASA",     "hallazgo": "html lang='es' en todas las paginas" },
+    { "id": 12, "normativa": "WCAG 4.1.2", "criterio": "Doble h1",                        "paginas": ["contacto.html"],                                   "estado": "FALLA",    "hallazgo": "Dos elementos h1: 'Contacto' y 'CFOTech IT Global Services'" },
+    { "id": 13, "normativa": "WCAG 4.1.2", "criterio": "iframes sin title",               "paginas": ["contacto.html"],                                   "estado": "FALLA",    "hallazgo": "Dos iframes Google Maps sin atributo title" },
+    { "id": 14, "normativa": "WCAG 4.1.2", "criterio": "Snackbar sin aria-live",          "paginas": ["contacto.html"],                                   "estado": "FALLA",    "hallazgo": "Notificaciones dinamicas sin role=alert ni aria-live" },
+    { "id": 15, "normativa": "WCAG 4.1.2", "criterio": "Spinner sin aria-hidden",         "paginas": ["contacto.html"],                                   "estado": "FALLA",    "hallazgo": "sbbtn-spinner visible sin aria-hidden=true" },
+    { "id": 16, "normativa": "WCAG 1.4.1", "criterio": "Charset declarado",               "paginas": ["todas"],                                           "estado": "PASA",     "hallazgo": "charset=UTF-8 en todas las paginas" },
+    { "id": 17, "normativa": "WCAG 1.4.3", "criterio": "Contraste de color",              "paginas": ["todas"],                                           "estado": "N/A",      "hallazgo": "No evaluable sin CSS en produccion" },
+    { "id": 18, "normativa": "ONTI",        "criterio": "Lenguaje claro",                  "paginas": ["aviso-legal.html"],                                "estado": "FALLA",    "hallazgo": "Lenguaje tecnico-legal complejo no accesible" },
+    { "id": 19, "normativa": "ONTI",        "criterio": "Documentos accesibles",           "paginas": ["todas"],                                           "estado": "N/A",      "hallazgo": "No se detectaron PDFs en las paginas analizadas" },
+    { "id": 20, "normativa": "ONTI",        "criterio": "Charset y lang declarados",       "paginas": ["todas"],                                           "estado": "PASA",     "hallazgo": "UTF-8 y lang=es presentes" },
+    { "id": 21, "normativa": "ONTI",        "criterio": "Tracker de terceros",             "paginas": ["busqueda_y_seleccion.html"],                       "estado": "PARCIAL", "hallazgo": "Maze Analytics cargado sin consentimiento explicito visible" }
+  ],
+  "resumen": {
+    "total": 21,
+    "pasa": 5,
+    "falla": 13,
+    "parcial": 3,
+    "na": 3
+  },
+  "brechas": [
+    { "prioridad": "alta",  "brecha": "Carrusel sin pausa (WCAG 2.2.2)",              "impacto": "Epilepsia fotosensible, TDAH, dislexia" },
+    { "prioridad": "alta",  "brecha": "Snackbar sin aria-live (WCAG 4.1.2)",          "impacto": "Usuarios ciegos no reciben feedback del formulario" },
+    { "prioridad": "alta",  "brecha": "iframes sin title (WCAG 4.1.2)",               "impacto": "Mapas no distinguibles por lector de pantalla" },
+    { "prioridad": "alta",  "brecha": "Falta landmark main (WCAG 1.3.1)",             "impacto": "Navegacion ineficiente con lector de pantalla" },
+    { "prioridad": "alta",  "brecha": "Alt text generico en carruseles (WCAG 1.1.1)", "impacto": "Sin contexto para usuarios ciegos" },
+    { "prioridad": "media", "brecha": "Sin skip links (WCAG 2.4.1)",                  "impacto": "Usuarios de teclado tabulan nav completa cada vez" },
+    { "prioridad": "media", "brecha": "Doble h1 en contacto (WCAG 4.1.2)",            "impacto": "Estructura semantica confusa" },
+    { "prioridad": "media", "brecha": "Copy icon sin acceso teclado (WCAG 2.1.1)",    "impacto": "Funcion inaccesible sin mouse" },
+    { "prioridad": "media", "brecha": "Sin autocomplete en form (WCAG 1.3.5)",        "impacto": "Sin soporte para autocompletado asistido" },
+    { "prioridad": "baja",  "brecha": "Texto enlace = URL cruda (WCAG 2.4.4)",        "impacto": "Lector de pantalla lee URL completa" },
+    { "prioridad": "baja",  "brecha": "Spinner sin aria-hidden (WCAG 4.1.2)",         "impacto": "Ruido semantico menor" },
+    { "prioridad": "baja",  "brecha": "Lenguaje legal complejo (ONTI)",               "impacto": "Accesibilidad cognitiva reducida" },
+    { "prioridad": "baja",  "brecha": "Tracker sin consentimiento (ONTI)",            "impacto": "Privacidad / consentimiento informado" }
+  ],
+  "plan_accion": [
+    { "sprint": 1, "accion": "Agregar role='alert' a #snackbar-container en contacto.html" },
+    { "sprint": 1, "accion": "Agregar title descriptivo a los dos iframes de Google Maps" },
+    { "sprint": 1, "accion": "Envolver contenido con <main id='main'> en todas las paginas" },
+    { "sprint": 1, "accion": "Agregar boton de pausa con aria-label a los carruseles" },
+    { "sprint": 2, "accion": "Reemplazar alt genericos por descripciones reales de las imagenes" },
+    { "sprint": 2, "accion": "Agregar skip link como primer elemento del body" },
+    { "sprint": 2, "accion": "Convertir segundo h1 de contacto.html en h2" },
+    { "sprint": 2, "accion": "Agregar atributos autocomplete a campos del formulario" },
+    { "sprint": 3, "accion": "aria-hidden=true en spinner + aria-busy=true en boton durante envio" },
+    { "sprint": 3, "accion": "Convertir span copy icon en button con aria-label" },
+    { "sprint": 3, "accion": "Reemplazar texto URL cruda por texto descriptivo en aviso-legal" },
+    { "sprint": 3, "accion": "Revision de lenguaje con criterios de lectura facil en aviso legal" },
+    { "sprint": 3, "accion": "Agregar banner de consentimiento antes de cargar Maze Analytics" }
+  ],
+  "resultado": "13 brechas detectadas (5 alta, 4 media, 4 baja). Sitio cumple basicos de idioma y charset pero presenta deficits en accesibilidad dinamica y landmarks semanticos. Estimacion de remediacion: 4-6 dias de desarrollo front-end."
+}

@@ -6,7 +6,7 @@ import { AppHeader } from './components/AppHeader'
 type Phase = 'form' | 'progress' | 'results'
 
 export const App = () => {
-  const [phase, setPhase] = useState<Phase>('form')
+  const [phase] = useState<Phase>('form')
 
   return (
     <>

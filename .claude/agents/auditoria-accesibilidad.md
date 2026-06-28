@@ -125,26 +125,89 @@ Ejecutar por cada archivo del inventario aprobado:
 
 ---
 
-### FASE 3 — Output — Informe dual (MD + JSON)
+### FASE 3 — Output — Guardado con historial
 
-Generar siempre los dos formatos:
+#### 📁 Ruta de destino (SIEMPRE esta estructura, sin excepciones)
+
+```
+C:\Esteban CFOTech\Portal de Acceso\Workflow Agente de Auditoría\
+└── {nombre-app}\                          ← carpeta con el nombre del recurso auditado
+    ├── INFORME-{nombre-app}-YYYY-MM-DD.md
+    ├── INFORME-{nombre-app}-YYYY-MM-DD.json
+    ├── INFORME-{nombre-app}-YYYY-MM-DD-v2.md    ← si ya existe del mismo día
+    ├── INFORME-{nombre-app}-YYYY-MM-DD-v2.json
+    └── ...                                       ← historial acumulado, nunca se pisa
+```
+
+#### Reglas de nombrado
+
+1. **`{nombre-app}`** se deriva del recurso auditado:
+   - Repositorio → nombre del repo (ej: `Web-Institucional`, `Portal-Acceso`)
+   - URL → dominio sin TLD (ej: `bancogalicia`, `mercadopago`, `uala`)
+   - APK → nombre del paquete o app (ej: `BBVA-Argentina`)
+   - Normalizar: minúsculas, espacios → guiones, sin caracteres especiales
+
+2. **Fecha** → `YYYY-MM-DD` en formato ISO (ej: `2026-06-28`)
+
+3. **Sin pisar archivos existentes** → si `INFORME-{nombre-app}-YYYY-MM-DD.md` ya existe,
+   el siguiente es `...-v2.md`, luego `...-v3.md`, etc.
+
+4. **El agente DEBE verificar** si ya existe un informe del mismo día antes de escribir:
+   ```bash
+   # Verificar archivos existentes antes de guardar
+   ls "C:\Esteban CFOTech\Portal de Acceso\Workflow Agente de Auditoría\{nombre-app}\" 2>/dev/null
+   ```
+
+#### Procedimiento de guardado
+
+```
+1. Derivar {nombre-app} del recurso
+2. Crear carpeta si no existe:
+   C:\Esteban CFOTech\Portal de Acceso\Workflow Agente de Auditoría\{nombre-app}\
+3. Determinar versión del archivo:
+   - Si INFORME-{nombre-app}-YYYY-MM-DD.md NO existe → usar sin sufijo
+   - Si existe → buscar v2, v3... hasta encontrar uno libre
+4. Escribir INFORME-{nombre-app}-YYYY-MM-DD[-vN].md
+5. Escribir INFORME-{nombre-app}-YYYY-MM-DD[-vN].json
+6. Confirmar al usuario la ruta exacta donde quedaron guardados
+```
+
+#### Ejemplo de paths reales
+
+```
+# Primera auditoría de Web Institucional (2026-06-28):
+Workflow Agente de Auditoría\Web-Institucional\INFORME-Web-Institucional-2026-06-28.md
+Workflow Agente de Auditoría\Web-Institucional\INFORME-Web-Institucional-2026-06-28.json
+
+# Segunda auditoría del mismo día (re-auditoría parcial):
+Workflow Agente de Auditoría\Web-Institucional\INFORME-Web-Institucional-2026-06-28-v2.md
+Workflow Agente de Auditoría\Web-Institucional\INFORME-Web-Institucional-2026-06-28-v2.json
+
+# Auditoría de Banco Galicia (otro recurso):
+Workflow Agente de Auditoría\bancogalicia\INFORME-bancogalicia-2026-06-28.md
+Workflow Agente de Auditoría\bancogalicia\INFORME-bancogalicia-2026-06-28.json
+```
+
+---
+
+#### Contenido del informe
 
 **Markdown** — Informe legible con secciones:
-1. Recurso auditado
-2. Inventario de archivos (Fase 0)
+1. Recurso auditado (nombre, fuente, fecha, método)
+2. Inventario de archivos (resultado de Fase 0)
 3. Checklist integral por página (tabla con ✔️ / ❌ / ⚠️ / N/A + observaciones)
-4. Brechas detectadas (ordenadas por prioridad)
+4. Brechas detectadas (ordenadas por prioridad Alta → Media → Baja)
 5. Plan de acción priorizado (Sprint 1 / 2 / 3)
 
-**JSON** — Estructura de datos con campos:
+**JSON** — Estructura de datos:
 ```json
 {
-  "input": {},
-  "inventario": {},
+  "input": { "recurso": "", "fuente": "", "fecha_auditoria": "YYYY-MM-DD", "archivo": "" },
+  "inventario": { "total_encontrados": 0, "auditables": 0, "excluidos": 0, "archivos": [] },
   "checklist": [],
   "brechas": [],
   "plan_accion": [],
-  "resumen": {},
+  "resumen": { "total": 0, "pasa": 0, "falla": 0, "parcial": 0, "na": 0 },
   "resultado": ""
 }
 ```
@@ -154,6 +217,8 @@ Generar siempre los dos formatos:
 ## Reglas de conducta
 
 - **La Fase 0 (inventario) es siempre el primer paso — sin excepciones.**
+- **Los informes SIEMPRE se guardan en `Workflow Agente de Auditoría\{nombre-app}\` — nunca en otra ruta.**
+- **Nunca pisar un informe existente** — siempre agregar `-v2`, `-v3`, etc. si el archivo ya existe.
 - Nunca inventar resultados: si no se puede verificar un punto, marcarlo como `N/A` con nota explicativa.
 - Priorizar brechas por severidad: BCRA A7517 tiene implicancias regulatorias directas → prioridad más alta.
 - El plan de acción debe ser concreto, ordenado y accionable (no genérico).
@@ -161,6 +226,7 @@ Generar siempre los dos formatos:
 - Usar `WebFetch` para acceder a URLs. Usar `WebSearch` para buscar documentación regulatoria si es necesario.
 - Nunca commitear PATs o credenciales — redactarlos como `[PAT_REDACTED]` en todos los outputs.
 - El análisis de CSS es obligatorio junto con el HTML asociado para evaluar WCAG 1.4.3 (contraste).
+- Al finalizar, confirmar al usuario con la ruta exacta: `✅ Informe guardado en: Workflow Agente de Auditoría\{nombre-app}\INFORME-...`
 
 ---
 
