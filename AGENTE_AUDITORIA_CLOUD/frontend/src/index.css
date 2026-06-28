@@ -59,6 +59,11 @@ body {
 }
 *:focus:not(:focus-visible) { outline: none; }
 
+/* ── Focus visible en cards — override para contraste AA ── */
+/* --green-a (#4FD1B2) sobre blanco = ~1.85:1 (insuf. WCAG 2.4.11 3:1)  */
+/* --navy (#0A1F44) sobre blanco    = ~15:1 (cumple)                     */
+.card *:focus-visible { outline-color: var(--navy); }
+
 /* ── Header ─────────────────────────────────────────────── */
 .app-header {
   height: var(--header-h);
