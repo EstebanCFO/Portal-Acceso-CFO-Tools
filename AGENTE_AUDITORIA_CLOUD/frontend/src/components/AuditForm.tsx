@@ -1,4 +1,4 @@
-import { useState, useId, useRef } from 'react'
+import { useState, useId, useRef, useEffect } from 'react'
 import type { AuditRequest, ResourceType, Normativa } from '../types/audit'
 
 interface Props {
@@ -37,7 +37,16 @@ export const AuditForm = ({ onSubmit, disabled }: Props) => {
   const depthId     = useId()
   const filesId     = useId()
   const localNameId = useId()
-  const errorSummId = useId()
+  const errorSummId       = useId()
+  const normativasErrorId = useId()
+  const branchHintId      = `${branchId}-hint`
+
+  // Mover foco al resumen de errores cuando aparecen (WCAG 3.3.1)
+  useEffect(() => {
+    if (Object.keys(errors).length > 0) {
+      errorRef.current?.focus()
+    }
+  }, [errors])
 
   const toggleNormativa = (n: Normativa) =>
     setNormativas(prev => prev.includes(n) ? prev.filter(x => x !== n) : [...prev, n])
@@ -60,10 +69,6 @@ export const AuditForm = ({ onSubmit, disabled }: Props) => {
     }
     if (normativas.length === 0) errs.normativas = 'Seleccioná al menos una normativa'
     setErrors(errs)
-    if (Object.keys(errs).length > 0) {
-      // Mover foco al resumen de errores (WCAG 3.3.1)
-      setTimeout(() => errorRef.current?.focus(), 50)
-    }
     return Object.keys(errs).length === 0
   }
 
@@ -185,9 +190,10 @@ export const AuditForm = ({ onSubmit, disabled }: Props) => {
               className="form-input"
               value={branch}
               onChange={e => setBranch(e.target.value)}
+              aria-describedby={branchHintId}
               disabled={disabled}
             />
-            <p className="form-hint">Dejar "main" si no sabés cuál es la rama principal.</p>
+            <p id={branchHintId} className="form-hint">Dejar "main" si no sabés cuál es la rama principal.</p>
           </div>
 
           <div className="form-group">
@@ -302,7 +308,7 @@ export const AuditForm = ({ onSubmit, disabled }: Props) => {
           className="checkbox-group"
           role="group"
           aria-labelledby="normativas-label"
-          aria-describedby={errors.normativas ? 'normativas-error' : undefined}
+          aria-describedby={errors.normativas ? normativasErrorId : undefined}
         >
           {NORMATIVAS.map(n => (
             <label key={n.id} className="checkbox-label">
@@ -316,7 +322,7 @@ export const AuditForm = ({ onSubmit, disabled }: Props) => {
             </label>
           ))}
         </div>
-        {errors.normativas && <p id="normativas-error" className="form-error">{errors.normativas}</p>}
+        {errors.normativas && <p id={normativasErrorId} className="form-error">{errors.normativas}</p>}
       </div>
 
       <button
