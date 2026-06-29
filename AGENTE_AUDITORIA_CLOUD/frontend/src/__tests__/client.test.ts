@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { runAudit, getHistory } from '../api/client'
+import { runAudit, getHistory, shutdownServices } from '../api/client'
 import type { AuditRequest } from '../types/audit'
 
 const mockFetch = vi.fn()
@@ -58,5 +58,21 @@ describe('getHistory', () => {
     const result = await getHistory()
     expect(result).toHaveLength(1)
     expect(result[0].nombre_app).toBe('bancogalicia')
+  })
+})
+
+describe('shutdownServices', () => {
+  it('POST /api/shutdown', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
+    await shutdownServices()
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/shutdown'),
+      expect.objectContaining({ method: 'POST' })
+    )
+  })
+
+  it('resuelve aunque el backend corte la conexión al apagarse', async () => {
+    mockFetch.mockRejectedValueOnce(new Error('Failed to fetch'))
+    await expect(shutdownServices()).resolves.toBeUndefined()
   })
 })

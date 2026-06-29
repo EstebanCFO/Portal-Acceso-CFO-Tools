@@ -5,11 +5,20 @@ import { AuditForm } from './components/AuditForm'
 import { ProgressPanel } from './components/ProgressPanel'
 import { ResultsPanel } from './components/ResultsPanel'
 import { HistoryPanel } from './components/HistoryPanel'
-import { runAudit } from './api/client'
+import { ExitDialog } from './components/ExitDialog'
+import type { ExitPhase } from './components/ExitDialog'
+import { runAudit, shutdownServices } from './api/client'
 import type { AuditRequest, AuditStatus } from './types/audit'
 
 export const App = () => {
   const [status, setStatus] = useState<AuditStatus>({ phase: 'idle' })
+  const [exitPhase, setExitPhase] = useState<ExitPhase | null>(null)
+
+  const handleExitConfirm = async () => {
+    setExitPhase('shutting')
+    await shutdownServices()
+    setExitPhase('done')
+  }
 
   const handleSubmit = async (req: AuditRequest) => {
     setStatus({ phase: 'loading', step: 'Conectando...', stepIndex: 0, totalSteps: 6 })
@@ -40,7 +49,7 @@ export const App = () => {
   return (
     <>
       <SkipLink />
-      <AppHeader />
+      <AppHeader onExit={() => setExitPhase('confirm')} />
       <main id="main" className="app-main">
 
         {status.phase === 'error' && (
@@ -92,6 +101,14 @@ export const App = () => {
         )}
 
       </main>
+
+      {exitPhase && (
+        <ExitDialog
+          phase={exitPhase}
+          onConfirm={handleExitConfirm}
+          onCancel={() => setExitPhase(null)}
+        />
+      )}
     </>
   )
 }

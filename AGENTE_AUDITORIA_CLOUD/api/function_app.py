@@ -11,6 +11,7 @@ import logging
 import os
 from audit_agent import run_audit_agent
 from blob_storage import save_report, list_reports
+from shutdown import perform_shutdown, is_azure
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
@@ -82,6 +83,31 @@ async def audit_endpoint(req: func.HttpRequest) -> func.HttpResponse:
             status_code=500,
             mimetype='application/json',
             headers=headers,
+        )
+
+
+@app.route(route="shutdown", methods=["POST", "OPTIONS"])
+async def shutdown_endpoint(req: func.HttpRequest) -> func.HttpResponse:
+    """Baja el stack local (Vite + Azurite + backend). Solo dev — 403 en Azure."""
+    headers = _cors_headers(req)
+    if req.method == 'OPTIONS':
+        return func.HttpResponse(status_code=200, headers=headers)
+    if is_azure():
+        return func.HttpResponse(
+            body=json.dumps({'error': 'shutdown deshabilitado en producción'}),
+            status_code=403, mimetype='application/json', headers=headers,
+        )
+    try:
+        result = perform_shutdown()
+        return func.HttpResponse(
+            body=json.dumps(result, ensure_ascii=False),
+            status_code=200, mimetype='application/json', headers=headers,
+        )
+    except Exception as exc:
+        logging.exception('Error en /api/shutdown')
+        return func.HttpResponse(
+            body=json.dumps({'error': str(exc)}, ensure_ascii=False),
+            status_code=500, mimetype='application/json', headers=headers,
         )
 
 

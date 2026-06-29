@@ -36,3 +36,16 @@ export async function getHistory(): Promise<HistoryEntry[]> {
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json() as Promise<HistoryEntry[]>
 }
+
+/**
+ * Baja el stack local (Vite + Azurite + backend). Solo dev.
+ * El backend se apaga a sí mismo, así que la conexión puede cortarse: lo
+ * tratamos como éxito (resuelve igual).
+ */
+export async function shutdownServices(): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/shutdown`, { method: 'POST' })
+  } catch {
+    // El backend cerró el puerto antes de responder — esperado al apagarse.
+  }
+}
