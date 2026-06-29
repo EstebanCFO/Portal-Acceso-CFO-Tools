@@ -1,0 +1,19 @@
+# AGENTE_AUDITORIA_CLOUD/.gitignore
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# Azure Functions
+api/local.settings.json
+api/.python_packages/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Misc
+.DS_Store
+*.log
