@@ -17,3 +17,8 @@ frontend/dist/
 # Misc
 .DS_Store
 *.log
+
+# Páginas web guardadas (material de prueba para auditoría local)
+Dólar hoy, Cotización del dólar _ Dolarhoy.com.html
+Dólar hoy, Cotización del dólar _ Dolarhoy.com_files/
+*_files/
