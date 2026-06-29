@@ -152,85 +152,120 @@ class LauncherUI:
         hdr.bind('<Button-1>',  self._drag_start)
         hdr.bind('<B1-Motion>', self._drag_move)
 
-        # Logo badge 32×32px (#00A878, r-8 aproximado con padding)
-        logo = tk.Frame(hdr, bg=C_GREEN_LOG, width=32, height=32)
-        logo.place(x=12, y=7)
-        logo.pack_propagate(False)
-        lbl = tk.Label(logo, text='CFO', bg=C_GREEN_LOG, fg=C_WHITE,
-                       font=('Segoe UI', 8, 'bold'))
-        lbl.place(relx=.5, rely=.5, anchor='center')
-        for w in (logo, lbl):
-            w.bind('<Button-1>',  self._drag_start)
-            w.bind('<B1-Motion>', self._drag_move)
-
-        # Brand
-        brand = tk.Frame(hdr, bg=C_HEADER)
-        brand.place(x=52, y=5)
-        brand.bind('<Button-1>',  self._drag_start)
-        brand.bind('<B1-Motion>', self._drag_move)
-        tk.Label(brand, text='CFOTech', bg=C_HEADER, fg=C_WHITE,
-                 font=('Segoe UI', 13, 'bold')).pack(side='left')
-        tk.Label(brand, text='  IT Tools', bg=C_HEADER, fg=C_ACCENT,
-                 font=('Segoe UI', 11, 'bold')).pack(side='left')
-        sub = tk.Label(hdr, text='Portal de Acceso', bg=C_HEADER,
-                       fg=C_MUTED, font=('Segoe UI', 7))
-        sub.place(x=53, y=28)
-        sub.bind('<Button-1>',  self._drag_start)
-        sub.bind('<B1-Motion>', self._drag_move)
-
-        # Botón cerrar — reposicionado para ancho 340
+        # Botón cerrar — pack RIGHT primero para reservar su espacio
         close = tk.Label(hdr, text='✕', bg=C_HEADER, fg=C_MUTED,
-                         font=('Segoe UI', 12), cursor='hand2')
-        close.place(x=self.W - 28, y=14)
+                         font=('Segoe UI', 11), cursor='hand2', padx=10)
+        close.pack(side='right', fill='y')
         close.bind('<Button-1>', lambda _: self._on_close())
         close.bind('<Enter>',    lambda _: close.config(fg=C_WHITE))
         close.bind('<Leave>',    lambda _: close.config(fg=C_MUTED))
+
+        # Logo badge 32×32px
+        logo = tk.Frame(hdr, bg=C_GREEN_LOG, width=32, height=32)
+        logo.pack(side='left', padx=(12, 0), pady=7)
+        logo.pack_propagate(False)
+        logo_lbl = tk.Label(logo, text='CFO', bg=C_GREEN_LOG, fg=C_WHITE,
+                            font=('Segoe UI', 8, 'bold'))
+        logo_lbl.place(relx=.5, rely=.5, anchor='center')
+        for w in (logo, logo_lbl):
+            w.bind('<Button-1>',  self._drag_start)
+            w.bind('<B1-Motion>', self._drag_move)
+
+        # Brand — frame vertical con 2 filas
+        brand = tk.Frame(hdr, bg=C_HEADER)
+        brand.pack(side='left', padx=(8, 0), pady=4)
+        brand.bind('<Button-1>',  self._drag_start)
+        brand.bind('<B1-Motion>', self._drag_move)
+
+        # Fila 1: "CFOTech" blanco + " IT Tools" teal en la misma línea
+        row1 = tk.Frame(brand, bg=C_HEADER)
+        row1.pack(anchor='w')
+        row1.bind('<Button-1>',  self._drag_start)
+        row1.bind('<B1-Motion>', self._drag_move)
+        tk.Label(row1, text='CFOTech', bg=C_HEADER, fg=C_WHITE,
+                 font=('Segoe UI', 13, 'bold')).pack(side='left')
+        tk.Label(row1, text=' IT Tools', bg=C_HEADER, fg=C_ACCENT,
+                 font=('Segoe UI', 11, 'bold')).pack(side='left')
+        for w in row1.winfo_children():
+            w.bind('<Button-1>',  self._drag_start)
+            w.bind('<B1-Motion>', self._drag_move)
+
+        # Fila 2: subtítulo
+        tk.Label(brand, text='Portal de Acceso', bg=C_HEADER,
+                 fg=C_MUTED, font=('Segoe UI', 7)).pack(anchor='w')
 
     def _build_body(self, parent):
         body = tk.Frame(parent, bg=C_BODY)
         body.pack(fill='both', expand=True)
 
-        # Canvas para el spinner
-        size = (self.SPIN_R + 8) * 2
-        self._canvas = tk.Canvas(body, width=size, height=size,
+        # ── Canvas del anillo (spinner) ───────────────────────────────────────
+        # Tamaño: (SPIN_R + 14) * 2 = 112px
+        size = (self.SPIN_R + 14) * 2
+        ring_wrap = tk.Frame(body, bg=C_BODY)
+        ring_wrap.pack(pady=(22, 0))
+
+        self._canvas = tk.Canvas(ring_wrap, width=size, height=size,
                                  bg=C_BODY, highlightthickness=0)
-        self._canvas.pack(pady=(18, 0))
+        self._canvas.pack()
 
-        # Título principal
-        tk.Label(body, text='Iniciando Plataforma',
+        # Badge CFO centrado sobre el canvas (posicionado con place relativo al ring_wrap)
+        badge_size = 44
+        badge_offset = (size - badge_size) // 2
+        self._badge = tk.Frame(ring_wrap, bg=C_GREEN_LOG,
+                               width=badge_size, height=badge_size)
+        self._badge.place(x=badge_offset, y=badge_offset)
+        self._badge.pack_propagate(False)
+        tk.Label(self._badge, text='CFO', bg=C_GREEN_LOG, fg=C_WHITE,
+                 font=('Segoe UI', 11, 'bold')).place(relx=.5, rely=.5, anchor='center')
+
+        # Burbuja de porcentaje — esquina top-right del canvas
+        self._pct_var = tk.StringVar(value='0%')
+        self._pct_bubble = tk.Label(
+            ring_wrap,
+            textvariable=self._pct_var,
+            bg=C_TRACK, fg=C_ACCENT,
+            font=('Segoe UI', 9, 'bold'),
+            padx=6, pady=2,
+            relief='flat',
+        )
+        # Posicionada a la derecha del canvas, un poco por encima del centro
+        self._pct_bubble.place(x=size - 2, y=4)
+
+        # ── Título principal ──────────────────────────────────────────────────
+        tk.Label(body, text='Iniciando plataforma',
                  bg=C_BODY, fg=C_WHITE,
-                 font=('Segoe UI', 12, 'bold')
-                 ).pack(pady=(8, 0))
+                 font=('Segoe UI', 14, 'bold')
+                 ).pack(pady=(14, 0))
 
-        # Texto de paso (step detail)
+        # ── Texto de paso ─────────────────────────────────────────────────────
         self.step_var = tk.StringVar(value='')
         self.step_lbl = tk.Label(body, textvariable=self.step_var,
                                  bg=C_BODY, fg=C_MUTED,
-                                 font=('Segoe UI', 8),
-                                 wraplength=260, justify='center')
+                                 font=('Segoe UI', 9),
+                                 wraplength=300, justify='center')
         self.step_lbl.pack(pady=(3, 0))
 
-        # ── Barra de progreso ──────────────────────────────────────────────
-        bar_frame = tk.Frame(body, bg=C_BODY)
-        bar_frame.pack(pady=(12, 0))
+        # ── Segmentos de etapa ────────────────────────────────────────────────
+        seg_frame = tk.Frame(body, bg=C_BODY)
+        seg_frame.pack(pady=(18, 0))
 
-        self._bar_canvas = tk.Canvas(
-            bar_frame,
+        self._seg_canvas = tk.Canvas(
+            seg_frame,
             width=self.BAR_W, height=self.BAR_H,
             bg=C_BODY, highlightthickness=0,
         )
-        self._bar_canvas.pack()
+        self._seg_canvas.pack()
 
-        # Porcentaje a la derecha de la barra
-        pct_row = tk.Frame(body, bg=C_BODY)
-        pct_row.pack(pady=(4, 0))
-        self._pct_var = tk.StringVar(value='0%')
-        tk.Label(pct_row, textvariable=self._pct_var,
-                 bg=C_BODY, fg=C_ACCENT,
-                 font=('Segoe UI', 8, 'bold')).pack()
+        # Labels de etapas
+        lbl_frame = tk.Frame(seg_frame, bg=C_BODY)
+        lbl_frame.pack(fill='x', pady=(4, 0))
+        for name in ('Puertos', 'Caché', 'Gateway', 'Portal'):
+            tk.Label(lbl_frame, text=name, bg=C_BODY, fg=C_MUTED,
+                     font=('Segoe UI', 8)
+                     ).pack(side='left', expand=True)
 
-        # Dibuja la barra inicial vacía
-        self._draw_bar(0)
+        # Dibuja segmentos iniciales (todos pendientes)
+        self._draw_segments(0)
 
         # Inicia animación del spinner
         self._spin()
@@ -282,12 +317,34 @@ class LauncherUI:
         )
 
     def _set_progress(self, pct: int):
-        """Actualiza la barra y el porcentaje. Thread-safe."""
+        """Actualiza los segmentos y el porcentaje. Thread-safe."""
         self._pct = pct
         def _update():
-            self._draw_bar(pct)
+            self._draw_segments(pct)
             self._pct_var.set(f'{pct}%')
         self.root.after(0, _update)
+
+    _SEG_THRESHOLDS = (25, 50, 75, 100)
+
+    def _draw_segments(self, pct: int):
+        """Dibuja los 4 segmentos de etapa basado en el porcentaje (0-100)."""
+        c     = self._seg_canvas
+        gap   = 6
+        seg_w = (self.BAR_W - gap * 3) // 4
+        c.delete('all')
+
+        for i, threshold in enumerate(self._SEG_THRESHOLDS):
+            prev = self._SEG_THRESHOLDS[i - 1] if i > 0 else 0
+            if pct >= threshold:
+                color = C_GREEN_LOG   # completado — verde
+            elif pct > prev:
+                color = C_ACCENT      # activo — teal
+            else:
+                color = C_TRACK       # pendiente — oscuro
+
+            x = i * (seg_w + gap)
+            self._rounded_rect(c, x, 0, x + seg_w, self.BAR_H, self.BAR_R,
+                               fill=color, outline='')
 
     # ── spinner ───────────────────────────────────────────────────────────────
 
@@ -297,21 +354,21 @@ class LauncherUI:
             return
         c  = self._canvas
         r  = self.SPIN_R
-        m  = r + 8          # margen hasta el borde del canvas
+        m  = r + 14         # margen hasta el borde del canvas
         x0, y0 = m - r, m - r
         x1, y1 = m + r, m + r
 
         c.delete('all')
 
-        # Pista (arco base, gris oscuro)
+        # Track (arco base, oscuro)
         c.create_arc(x0, y0, x1, y1,
                      start=0, extent=359,
-                     outline='#1C2E48', width=4, style='arc')
+                     outline=C_TRACK, width=5, style='arc')
 
-        # Arco animado (270° de apertura)
+        # Arco animado — 270° de apertura, color acento
         c.create_arc(x0, y0, x1, y1,
                      start=self._angle, extent=270,
-                     outline=C_ACCENT, width=4, style='arc')
+                     outline=C_ACCENT, width=5, style='arc')
 
         self._angle = (self._angle - self.SPIN_STEP) % 360
         self._spin_job = self.root.after(self.SPIN_MS, self._spin)
@@ -338,27 +395,24 @@ class LauncherUI:
         self.root.after(0, self.step_var.set, text)
 
     def _show_error(self, msg: str):
-        """Detiene spinner, muestra el error y un link para cerrar."""
         def _draw():
             self._error = True
             self._stop_spinner()
 
-            # Dibujar X roja en el canvas
             c = self._canvas
             r = self.SPIN_R
-            m = r + 8
+            m = r + 14
+            # Círculo rojo
             c.create_oval(m - r, m - r, m + r, m + r,
                           outline=C_ERROR, width=3)
-            d = r * 0.55
-            c.create_line(m - d, m - d, m + d, m + d,
-                          fill=C_ERROR, width=2)
-            c.create_line(m + d, m - d, m - d, m + d,
-                          fill=C_ERROR, width=2)
+            # X roja
+            d = r * 0.5
+            c.create_line(m - d, m - d, m + d, m + d, fill=C_ERROR, width=2)
+            c.create_line(m + d, m - d, m - d, m + d, fill=C_ERROR, width=2)
 
             self.step_var.set(msg)
             self.step_lbl.config(fg=C_ERROR)
 
-            # Link para cerrar
             close_lnk = tk.Label(self.root, text='Cerrar',
                                   bg=C_BODY, fg=C_MUTED,
                                   font=('Segoe UI', 8, 'underline'),
@@ -414,7 +468,7 @@ class LauncherUI:
         self._set_progress(75)
 
         # 4. Arrancar portal_server.py (gateway unificado en PORTAL_PORT)
-        self._set_step('Iniciando plataforma…')
+        self._set_step('Iniciando gateway…')
         local_portal = f'http://localhost:{PORTAL_PORT}'
         gateway_script = os.path.join(BASE_DIR, 'portal_server.py')
         if not _ping(f'{local_portal}/api/health', 1) and os.path.exists(gateway_script):
