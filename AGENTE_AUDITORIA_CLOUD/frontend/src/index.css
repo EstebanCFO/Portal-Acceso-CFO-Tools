@@ -262,7 +262,22 @@ body {
 .history-row:last-child { border-bottom: none; }
 .history-app   { font-weight: 600; flex: 1; min-width: 0; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
 .history-date  { color: var(--text3); flex-shrink: 0; }
-.history-links { display: flex; gap: 8px; flex-shrink: 0; }
+.history-links { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
+
+/* Botón ícono (papelera) en el historial */
+.icon-btn {
+  width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.icon-btn:hover:not(:disabled) { background: var(--gray1); }
+.icon-btn:disabled { opacity: .5; cursor: not-allowed; }
+.icon-btn--danger:hover:not(:disabled) { border-color: var(--red); background: var(--red-l); }
 
 /* ── Error banner ───────────────────────────────────────── */
 .banner { padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { runAudit, getHistory, shutdownServices } from '../api/client'
+import { runAudit, getHistory, shutdownServices, deleteReport } from '../api/client'
 import type { AuditRequest } from '../types/audit'
 
 const mockFetch = vi.fn()
@@ -17,7 +17,7 @@ describe('runAudit', () => {
     const req: AuditRequest = {
       type: 'repo',
       normativas: ['wcag22'],
-      repo: { platform: 'azure-devops', org: 'mi-org', project: 'mi-proyecto', repo: 'mi-repo', branch: 'main', pat: 'abc' },
+      repo: { url: 'https://dev.azure.com/mi-org/mi-proyecto/_git/mi-repo' },
     }
     const result = await runAudit(req)
     expect(mockFetch).toHaveBeenCalledWith(
@@ -46,7 +46,7 @@ describe('runAudit', () => {
 
   it('lanza error si la respuesta no es ok', async () => {
     mockFetch.mockResolvedValueOnce({ ok: false, text: async () => 'Internal error' })
-    const req: AuditRequest = { type: 'url', normativas: ['wcag22'], url: { url: 'https://example.com', depth: 1 } }
+    const req: AuditRequest = { type: 'url', normativas: ['wcag22'], url: { url: 'https://example.com' } }
     await expect(runAudit(req)).rejects.toThrow('Internal error')
   })
 })
@@ -58,6 +58,23 @@ describe('getHistory', () => {
     const result = await getHistory()
     expect(result).toHaveLength(1)
     expect(result[0].nombre_app).toBe('bancogalicia')
+  })
+})
+
+describe('deleteReport', () => {
+  it('DELETE /api/report con los parámetros del informe', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
+    await deleteReport({ nombre_app: 'bancogalicia', fecha: '2026-06-28', version: 'v2' })
+    const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit]
+    expect(url).toContain('/report?')
+    expect(url).toContain('nombre_app=bancogalicia')
+    expect(url).toContain('version=v2')
+    expect(options.method).toBe('DELETE')
+  })
+
+  it('lanza error si la respuesta no es ok', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false })
+    await expect(deleteReport({ nombre_app: 'x', fecha: '2026-06-28', version: '' })).rejects.toThrow()
   })
 })
 

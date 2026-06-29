@@ -6,7 +6,7 @@ interface Props {
 }
 
 export const ResultsPanel = ({ result, onReset }: Props) => {
-  const { brechas_resumen, blob_url_md, blob_url_json, nombre_app, fecha } = result
+  const { brechas_resumen, blob_url_pdf, nombre_app, fecha } = result
 
   return (
     <section aria-label="Resultado de la auditoría">
@@ -24,20 +24,12 @@ export const ResultsPanel = ({ result, onReset }: Props) => {
 
         <div className="download-row">
           <a
-            href={blob_url_md}
-            download={`INFORME-${nombre_app}-${fecha}.md`}
+            href={blob_url_pdf}
+            download={`INFORME-${nombre_app}-${fecha}.pdf`}
             className="btn-primary"
-            aria-label="Descargar informe Markdown"
+            aria-label="Descargar informe PDF"
           >
-            ⬇ Informe MD
-          </a>
-          <a
-            href={blob_url_json}
-            download={`INFORME-${nombre_app}-${fecha}.json`}
-            className="btn-secondary"
-            aria-label="Descargar informe JSON"
-          >
-            ⬇ Informe JSON
+            ⬇ Descargar PDF
           </a>
         </div>
       </div>

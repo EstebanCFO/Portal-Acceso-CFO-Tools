@@ -9,6 +9,7 @@ const mockResult: AuditResponse = {
   brechas_resumen: { alta: 3, media: 5, baja: 2 },
   blob_url_md: 'https://storage.azure.com/reports/test.md',
   blob_url_json: 'https://storage.azure.com/reports/test.json',
+  blob_url_pdf: 'https://storage.azure.com/reports/test.pdf',
   nombre_app: 'bancogalicia',
   fecha: '2026-06-28',
 }
@@ -21,12 +22,17 @@ describe('ResultsPanel', () => {
     expect(screen.getByText('2 Bajas')).toBeInTheDocument()
   })
 
-  it('tiene links de descarga accesibles con text descriptivo', () => {
+  it('tiene un link de descarga PDF accesible y no MD/JSON', () => {
     render(<ResultsPanel result={mockResult} onReset={vi.fn()} />)
-    const mdLink = screen.getByRole('link', { name: /descargar informe markdown/i })
-    const jsonLink = screen.getByRole('link', { name: /descargar informe json/i })
-    expect(mdLink).toHaveAttribute('href', mockResult.blob_url_md)
-    expect(jsonLink).toHaveAttribute('href', mockResult.blob_url_json)
+    const pdfLink = screen.getByRole('link', { name: /descargar informe pdf/i })
+    expect(pdfLink).toHaveAttribute('href', mockResult.blob_url_pdf)
+    expect(screen.queryByRole('link', { name: /markdown/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /json/i })).not.toBeInTheDocument()
+  })
+
+  it('mantiene la vista previa "Ver informe" en pantalla', () => {
+    render(<ResultsPanel result={mockResult} onReset={vi.fn()} />)
+    expect(screen.getByText(/ver informe/i)).toBeInTheDocument()
   })
 
   it('tiene region aria-live para anunciar resultado', () => {

@@ -12,40 +12,38 @@ const NORMATIVAS: { id: Normativa; label: string }[] = [
   { id: 'bcra',   label: 'BCRA A7517' },
 ]
 
+const TIPOS: { id: ResourceType; label: string }[] = [
+  { id: 'repo',  label: '📁 Repositorio' },
+  { id: 'url',   label: '🌐 URL' },
+  { id: 'local', label: '📂 App Local' },
+]
+
+// Título del campo principal según el artefacto elegido
+const FIELD_TITLE: Record<ResourceType, string> = {
+  repo:  'URL Repositorio',
+  url:   'URL',
+  local: 'App Local',
+}
+
 export const AuditForm = ({ onSubmit, disabled }: Props) => {
   const [type, setType]             = useState<ResourceType>('repo')
-  const [org, setOrg]               = useState('')
-  const [project, setProject]       = useState('')
-  const [repoName, setRepoName]     = useState('')
-  const [branch, setBranch]         = useState('main')
-  const [pat, setPat]               = useState('')
+  const [repoUrl, setRepoUrl]       = useState('')
   const [url, setUrl]               = useState('')
-  const [depth, setDepth]           = useState<1 | 2>(1)
   const [files, setFiles]           = useState<File[]>([])
   const [localName, setLocalName]   = useState('')
   const [normativas, setNormativas] = useState<Normativa[]>(['wcag22', 'onti', 'bcra'])
   const [errors, setErrors]         = useState<Record<string, string>>({})
   const errorRef = useRef<HTMLDivElement>(null)
 
-  // IDs únicos para accesibilidad
-  const orgId       = useId()
-  const projectId   = useId()
-  const repoId      = useId()
-  const branchId    = useId()
-  const patId       = useId()
+  const repoUrlId   = useId()
   const urlId       = useId()
-  const depthId     = useId()
   const filesId     = useId()
   const localNameId = useId()
   const errorSummId       = useId()
   const normativasErrorId = useId()
-  const branchHintId      = `${branchId}-hint`
 
-  // Mover foco al resumen de errores cuando aparecen (WCAG 3.3.1)
   useEffect(() => {
-    if (Object.keys(errors).length > 0) {
-      errorRef.current?.focus()
-    }
+    if (Object.keys(errors).length > 0) errorRef.current?.focus()
   }, [errors])
 
   const toggleNormativa = (n: Normativa) =>
@@ -54,10 +52,7 @@ export const AuditForm = ({ onSubmit, disabled }: Props) => {
   const validate = (): boolean => {
     const errs: Record<string, string> = {}
     if (type === 'repo') {
-      if (!org.trim())      errs.org     = 'La organización es requerida'
-      if (!project.trim())  errs.project = 'El proyecto es requerido'
-      if (!repoName.trim()) errs.repo    = 'El repositorio es requerido'
-      if (!pat.trim())      errs.pat     = 'El Personal Access Token es requerido'
+      if (!repoUrl.trim()) errs.repoUrl = 'La URL del repositorio es requerida'
     }
     if (type === 'url') {
       if (!url.trim() || !url.startsWith('http'))
@@ -78,8 +73,8 @@ export const AuditForm = ({ onSubmit, disabled }: Props) => {
     const req: AuditRequest = {
       type,
       normativas,
-      ...(type === 'repo'  && { repo:  { platform: 'azure-devops', org, project, repo: repoName, branch, pat } }),
-      ...(type === 'url'   && { url:   { url, depth } }),
+      ...(type === 'repo'  && { repo:  { url: repoUrl.trim() } }),
+      ...(type === 'url'   && { url:   { url: url.trim() } }),
       ...(type === 'local' && { local: { files, name: localName } }),
     }
     onSubmit(req)
@@ -89,7 +84,6 @@ export const AuditForm = ({ onSubmit, disabled }: Props) => {
 
   return (
     <form onSubmit={handleSubmit} noValidate aria-label="Formulario de auditoría de accesibilidad">
-      {/* Resumen de errores (WCAG 3.3.1) */}
       {errorCount > 0 && (
         <div
           ref={errorRef}
@@ -104,163 +98,73 @@ export const AuditForm = ({ onSubmit, disabled }: Props) => {
         </div>
       )}
 
-      {/* ── Tipo de recurso ── */}
+      {/* ── Selección de artefacto ── */}
       <div className="form-group">
-        <span className="form-label" id="type-group-label">Tipo de recurso</span>
+        <span className="form-label" id="type-group-label">Seleccione artefacto para Auditar</span>
         <div className="type-tabs" role="group" aria-labelledby="type-group-label">
-          {(['repo', 'url', 'local'] as ResourceType[]).map(t => (
+          {TIPOS.map(t => (
             <button
-              key={t}
+              key={t.id}
               type="button"
               className="type-tab"
-              aria-pressed={type === t}
-              onClick={() => { setType(t); setErrors({}) }}
+              aria-pressed={type === t.id}
+              onClick={() => { setType(t.id); setErrors({}) }}
+              disabled={disabled}
             >
-              {t === 'repo'  && '📁 Repositorio'}
-              {t === 'url'   && '🌐 URL'}
-              {t === 'local' && '📂 App local'}
+              {t.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* ── Campos según tipo ── */}
+      {/* ── Campo principal según artefacto ── */}
       {type === 'repo' && (
-        <>
-          <div className="form-group">
-            <label htmlFor={orgId} className="form-label">
-              Organización <span aria-hidden="true">*</span>
-            </label>
-            <input
-              id={orgId}
-              type="text"
-              className="form-input"
-              value={org}
-              onChange={e => setOrg(e.target.value)}
-              aria-required="true"
-              aria-invalid={errors.org ? true : undefined}
-              aria-describedby={errors.org ? `${orgId}-error` : undefined}
-              disabled={disabled}
-              autoComplete="organization"
-            />
-            {errors.org && <p id={`${orgId}-error`} className="form-error">{errors.org}</p>}
-          </div>
-
-          <div className="form-group">
-            <label htmlFor={projectId} className="form-label">
-              Proyecto <span aria-hidden="true">*</span>
-            </label>
-            <input
-              id={projectId}
-              type="text"
-              className="form-input"
-              value={project}
-              onChange={e => setProject(e.target.value)}
-              aria-required="true"
-              aria-invalid={errors.project ? true : undefined}
-              aria-describedby={errors.project ? `${projectId}-error` : undefined}
-              disabled={disabled}
-            />
-            {errors.project && <p id={`${projectId}-error`} className="form-error">{errors.project}</p>}
-          </div>
-
-          <div className="form-group">
-            <label htmlFor={repoId} className="form-label">
-              Repositorio <span aria-hidden="true">*</span>
-            </label>
-            <input
-              id={repoId}
-              type="text"
-              className="form-input"
-              value={repoName}
-              onChange={e => setRepoName(e.target.value)}
-              aria-required="true"
-              aria-invalid={errors.repo ? true : undefined}
-              aria-describedby={errors.repo ? `${repoId}-error` : undefined}
-              disabled={disabled}
-            />
-            {errors.repo && <p id={`${repoId}-error`} className="form-error">{errors.repo}</p>}
-          </div>
-
-          <div className="form-group">
-            <label htmlFor={branchId} className="form-label">Rama</label>
-            <input
-              id={branchId}
-              type="text"
-              className="form-input"
-              value={branch}
-              onChange={e => setBranch(e.target.value)}
-              aria-describedby={branchHintId}
-              disabled={disabled}
-            />
-            <p id={branchHintId} className="form-hint">Dejar "main" si no sabés cuál es la rama principal.</p>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor={patId} className="form-label">
-              Token de acceso (PAT) <span aria-hidden="true">*</span>
-            </label>
-            <input
-              id={patId}
-              type="password"
-              className="form-input"
-              value={pat}
-              onChange={e => setPat(e.target.value)}
-              aria-required="true"
-              aria-invalid={errors.pat ? true : undefined}
-              aria-describedby={`${patId}-hint${errors.pat ? ` ${patId}-error` : ''}`}
-              disabled={disabled}
-              autoComplete="current-password"
-            />
-            <p id={`${patId}-hint`} className="form-hint">El token no se almacena — se usa únicamente durante la auditoría.</p>
-            {errors.pat && <p id={`${patId}-error`} className="form-error">{errors.pat}</p>}
-          </div>
-        </>
+        <div className="form-group">
+          <label htmlFor={repoUrlId} className="form-label">
+            {FIELD_TITLE.repo} <span aria-hidden="true">*</span>
+          </label>
+          <input
+            id={repoUrlId}
+            type="url"
+            className="form-input"
+            placeholder="https://dev.azure.com/organización/proyecto/_git/repositorio"
+            value={repoUrl}
+            onChange={e => setRepoUrl(e.target.value)}
+            aria-required="true"
+            aria-invalid={!!errors.repoUrl}
+            aria-describedby={errors.repoUrl ? `${repoUrlId}-error` : undefined}
+            disabled={disabled}
+          />
+          {errors.repoUrl && <p id={`${repoUrlId}-error`} className="form-error" role="alert">{errors.repoUrl}</p>}
+        </div>
       )}
 
       {type === 'url' && (
-        <>
-          <div className="form-group">
-            <label htmlFor={urlId} className="form-label">
-              URL del sitio <span aria-hidden="true">*</span>
-            </label>
-            <input
-              id={urlId}
-              type="url"
-              className="form-input"
-              placeholder="https://www.bancogalicia.com.ar"
-              value={url}
-              onChange={e => setUrl(e.target.value)}
-              aria-required="true"
-              aria-invalid={errors.url ? true : undefined}
-              aria-describedby={errors.url ? `${urlId}-error` : undefined}
-              disabled={disabled}
-              autoComplete="url"
-            />
-            {errors.url && <p id={`${urlId}-error`} className="form-error">{errors.url}</p>}
-          </div>
-
-          <div className="form-group">
-            <label htmlFor={depthId} className="form-label">Profundidad de rastreo</label>
-            <select
-              id={depthId}
-              className="form-select"
-              value={depth}
-              onChange={e => setDepth(Number(e.target.value) as 1 | 2)}
-              disabled={disabled}
-            >
-              <option value={1}>Solo esta página (1 nivel)</option>
-              <option value={2}>Páginas enlazadas (2 niveles)</option>
-            </select>
-          </div>
-        </>
+        <div className="form-group">
+          <label htmlFor={urlId} className="form-label">
+            {FIELD_TITLE.url} <span aria-hidden="true">*</span>
+          </label>
+          <input
+            id={urlId}
+            type="url"
+            className="form-input"
+            placeholder="https://www.bancogalicia.com.ar"
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            aria-required="true"
+            aria-invalid={!!errors.url}
+            aria-describedby={errors.url ? `${urlId}-error` : undefined}
+            disabled={disabled}
+          />
+          {errors.url && <p id={`${urlId}-error`} className="form-error" role="alert">{errors.url}</p>}
+        </div>
       )}
 
       {type === 'local' && (
         <>
           <div className="form-group">
             <label htmlFor={localNameId} className="form-label">
-              Nombre del recurso <span aria-hidden="true">*</span>
+              {FIELD_TITLE.local} — Nombre <span aria-hidden="true">*</span>
             </label>
             <input
               id={localNameId}
@@ -270,11 +174,11 @@ export const AuditForm = ({ onSubmit, disabled }: Props) => {
               value={localName}
               onChange={e => setLocalName(e.target.value)}
               aria-required="true"
-              aria-invalid={errors.localName ? true : undefined}
+              aria-invalid={!!errors.localName}
               aria-describedby={errors.localName ? `${localNameId}-error` : undefined}
               disabled={disabled}
             />
-            {errors.localName && <p id={`${localNameId}-error`} className="form-error">{errors.localName}</p>}
+            {errors.localName && <p id={`${localNameId}-error`} className="form-error" role="alert">{errors.localName}</p>}
           </div>
 
           <div className="form-group">
@@ -289,12 +193,12 @@ export const AuditForm = ({ onSubmit, disabled }: Props) => {
               accept=".html,.htm,.css"
               onChange={e => setFiles(Array.from(e.target.files ?? []))}
               aria-required="true"
-              aria-invalid={errors.files ? true : undefined}
+              aria-invalid={!!errors.files}
               aria-describedby={`${filesId}-hint${errors.files ? ` ${filesId}-error` : ''}`}
               disabled={disabled}
             />
             <p id={`${filesId}-hint`} className="form-hint">Podés seleccionar múltiples archivos (Ctrl+clic).</p>
-            {errors.files && <p id={`${filesId}-error`} className="form-error">{errors.files}</p>}
+            {errors.files && <p id={`${filesId}-error`} className="form-error" role="alert">{errors.files}</p>}
           </div>
         </>
       )}
@@ -322,15 +226,10 @@ export const AuditForm = ({ onSubmit, disabled }: Props) => {
             </label>
           ))}
         </div>
-        {errors.normativas && <p id={normativasErrorId} className="form-error">{errors.normativas}</p>}
+        {errors.normativas && <p id={normativasErrorId} className="form-error" role="alert">{errors.normativas}</p>}
       </div>
 
-      <button
-        type="submit"
-        className="btn-primary"
-        disabled={disabled}
-        aria-label="Iniciar auditoría"
-      >
+      <button type="submit" className="btn-primary" disabled={disabled}>
         {disabled ? '⏳ Auditando...' : '▶ Iniciar auditoría'}
       </button>
     </form>

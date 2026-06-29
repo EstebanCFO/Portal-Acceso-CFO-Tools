@@ -1,19 +1,13 @@
 export type ResourceType = 'repo' | 'url' | 'local'
-export type Platform = 'azure-devops' | 'github'
 export type Normativa = 'wcag22' | 'onti' | 'bcra'
 
 export interface RepoInput {
-  platform: Platform
-  org: string
-  project: string
-  repo: string
-  branch: string
-  pat: string
+  /** URL del repo Azure DevOps; el PAT vive server-side. */
+  url: string
 }
 
 export interface UrlInput {
   url: string
-  depth: 1 | 2
 }
 
 export interface LocalInput {
@@ -41,6 +35,7 @@ export interface AuditResponse {
   brechas_resumen: BreachCount
   blob_url_md: string
   blob_url_json: string
+  blob_url_pdf: string
   nombre_app: string
   fecha: string
 }
@@ -51,6 +46,7 @@ export interface HistoryEntry {
   version: string
   url_md: string
   url_json: string
+  url_pdf: string
   brechas: BreachCount
 }
 

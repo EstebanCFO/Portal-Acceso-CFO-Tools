@@ -1,5 +1,11 @@
 import type { AuditRequest, AuditResponse, HistoryEntry } from '../types/audit'
 
+export interface DeleteReportArgs {
+  nombre_app: string
+  fecha: string
+  version: string
+}
+
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
 
 export async function runAudit(request: AuditRequest): Promise<AuditResponse> {
@@ -35,6 +41,17 @@ export async function getHistory(): Promise<HistoryEntry[]> {
   const res = await fetch(`${API_BASE}/history`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json() as Promise<HistoryEntry[]>
+}
+
+/** Borra un informe del historial (md + json + pdf). */
+export async function deleteReport(args: DeleteReportArgs): Promise<void> {
+  const qs = new URLSearchParams({
+    nombre_app: args.nombre_app,
+    fecha: args.fecha,
+    version: args.version,
+  })
+  const res = await fetch(`${API_BASE}/report?${qs}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
 }
 
 /**
