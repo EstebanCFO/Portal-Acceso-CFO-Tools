@@ -4,6 +4,7 @@ import os
 import json
 import re
 from datetime import date
+from urllib.parse import unquote
 from fetchers import fetch_repo, fetch_url, fetch_local
 
 CLAUDE_MODEL = os.environ.get('CLAUDE_MODEL', 'claude-sonnet-4-6')
@@ -56,6 +57,9 @@ Notas:
 - Nunca inventar resultados. Si no podés verificar un criterio, marcarlo N/A con nota.
 - El PAT y credenciales no deben aparecer nunca en el output.
 - Priorizar brechas BCRA A7517 (implicancias regulatorias directas).
+- IMPORTANTE: si hay muchos archivos, resumí o agrupá el checklist por archivo, pero
+  SIEMPRE incluí completas la tabla "Brechas detectadas", el "Plan de acción" y el
+  "Resultado general". Son las secciones más importantes y nunca deben quedar truncadas.
 """
 
 
@@ -90,6 +94,39 @@ def _parse_brechas(md_text: str) -> dict:
     return counts
 
 
+def _parse_repo_url(url: str) -> dict:
+    """Parsea una URL de repo Azure DevOps a org/project/repo.
+
+    Soporta dev.azure.com/{org}/{project}/_git/{repo} y el legacy
+    {org}.visualstudio.com/{project}/_git/{repo}. Decodifica %20 (espacios).
+    """
+    u = unquote(url.strip())
+    m = re.search(r'dev\.azure\.com/([^/]+)/([^/]+)/_git/([^/?#]+)', u)
+    if m:
+        return {'org': m.group(1), 'project': m.group(2), 'repo': m.group(3)}
+    m = re.search(r'https?://([^.]+)\.visualstudio\.com/([^/]+)/_git/([^/?#]+)', u)
+    if m:
+        return {'org': m.group(1), 'project': m.group(2), 'repo': m.group(3)}
+    raise ValueError(f'URL de repositorio Azure DevOps no reconocida: {url}')
+
+
+async def _fetch_repo_auto(repo_data: dict) -> dict:
+    """fetch_repo probando ramas comunes (main/master) si no se especifica."""
+    pedida = repo_data.get('branch') or 'main'
+    candidatas = [pedida] + [b for b in ('main', 'master') if b != pedida]
+    last_err = None
+    for branch in candidatas:
+        try:
+            archivos = await fetch_repo({**repo_data, 'branch': branch})
+            if archivos:
+                return archivos
+        except Exception as e:  # rama inexistente u otro error -> probar la siguiente
+            last_err = e
+    if last_err:
+        raise last_err
+    return {}
+
+
 def _redact_pat(text: str, pat: str | None) -> str:
     """Reemplaza el PAT en el texto con [PAT_REDACTED]."""
     if not pat or len(pat) < 4:
@@ -104,10 +141,12 @@ async def run_audit_agent(request: dict) -> dict:
 
     # 1. Obtener archivos según tipo
     if tipo == 'repo':
-        repo_data  = request['repo']
-        pat        = repo_data.get('pat')
-        archivos   = await fetch_repo(repo_data)
-        nombre_app = repo_data['repo']
+        repo_input = request['repo']
+        parsed     = _parse_repo_url(repo_input['url'])
+        pat        = os.environ.get('AZURE_DEVOPS_PAT', '')  # PAT server-side, no del cliente
+        repo_data  = {**parsed, 'branch': repo_input.get('branch') or 'main', 'pat': pat}
+        archivos   = await _fetch_repo_auto(repo_data)
+        nombre_app = parsed['repo']
     elif tipo == 'url':
         url_data   = request['url']
         archivos   = await fetch_url(url_data['url'], url_data.get('depth', 1))
@@ -136,7 +175,7 @@ async def run_audit_agent(request: dict) -> dict:
     client  = anthropic.Anthropic(api_key=os.environ['ANTHROPIC_API_KEY'])
     message = client.messages.create(
         model=CLAUDE_MODEL,
-        max_tokens=8000,
+        max_tokens=16000,
         system=AUDIT_SYSTEM_PROMPT,
         messages=[{'role': 'user', 'content': user_message}],
     )

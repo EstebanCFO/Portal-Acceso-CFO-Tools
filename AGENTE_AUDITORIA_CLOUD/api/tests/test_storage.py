@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from blob_storage import save_report, list_reports, _build_blob_name
+from blob_storage import save_report, list_reports, delete_report, _build_blob_name
 
 class TestBuildBlobName:
     def test_primera_auditoria_sin_version(self):
@@ -31,14 +31,39 @@ class TestSaveReport:
 
         with patch('blob_storage.ContainerClient.from_connection_string', return_value=mock_container), \
              patch('blob_storage.generate_blob_sas', return_value='sig=FAKESAS'):
-            result = await save_report('bancogalicia', '2026-06-28', '# Informe', '{}')
+            result = await save_report('bancogalicia', '2026-06-28', '# Informe', '{}', b'%PDF-1.4 fake')
 
         assert 'blob_url_md' in result
         assert 'blob_url_json' in result
-        assert mock_blob_client.upload_blob.call_count == 2  # MD + JSON
+        assert 'blob_url_pdf' in result
+        assert mock_blob_client.upload_blob.call_count == 3  # MD + JSON + PDF
         # Las URLs deben llevar el SAS token para ser descargables sin auth
         assert 'sig=FAKESAS' in result['blob_url_md']
-        assert 'sig=FAKESAS' in result['blob_url_json']
+        assert 'sig=FAKESAS' in result['blob_url_pdf']
+
+
+class TestDeleteReport:
+    @pytest.mark.asyncio
+    async def test_borra_md_json_y_pdf(self):
+        mock_container = MagicMock()
+        mock_container.delete_blob = MagicMock()
+        with patch('blob_storage.ContainerClient.from_connection_string', return_value=mock_container):
+            await delete_report('bancogalicia', '2026-06-28', 'v2')
+
+        deleted = [c.args[0] for c in mock_container.delete_blob.call_args_list]
+        assert 'bancogalicia/INFORME-bancogalicia-2026-06-28-v2.md' in deleted
+        assert 'bancogalicia/INFORME-bancogalicia-2026-06-28-v2.json' in deleted
+        assert 'bancogalicia/INFORME-bancogalicia-2026-06-28-v2.pdf' in deleted
+
+    @pytest.mark.asyncio
+    async def test_primera_version_sin_sufijo(self):
+        mock_container = MagicMock()
+        mock_container.delete_blob = MagicMock()
+        with patch('blob_storage.ContainerClient.from_connection_string', return_value=mock_container):
+            await delete_report('uala', '2026-06-27', '')
+
+        deleted = [c.args[0] for c in mock_container.delete_blob.call_args_list]
+        assert 'uala/INFORME-uala-2026-06-27.md' in deleted
 
 class TestListReports:
     @pytest.mark.asyncio
@@ -63,5 +88,4 @@ class TestListReports:
         assert len(result) == 2
         assert result[0]['nombre_app'] in ('bancogalicia', 'uala')
         # Los links del historial llevan SAS para descargarse sin auth
-        assert 'sig=FAKESAS' in result[0]['url_md']
-        assert 'sig=FAKESAS' in result[0]['url_json']
+        assert 'sig=FAKESAS' in result[0]['url_pdf']

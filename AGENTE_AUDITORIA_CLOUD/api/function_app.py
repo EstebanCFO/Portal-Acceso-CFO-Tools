@@ -10,7 +10,8 @@ import json
 import logging
 import os
 from audit_agent import run_audit_agent
-from blob_storage import save_report, list_reports
+from blob_storage import save_report, list_reports, delete_report
+from pdf_report import build_pdf
 from shutdown import perform_shutdown, is_azure
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
@@ -23,7 +24,7 @@ def _cors_headers(req: func.HttpRequest) -> dict:
     allowed = origin if origin in ALLOWED_ORIGINS else ALLOWED_ORIGINS[0]
     return {
         'Access-Control-Allow-Origin':  allowed,
-        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+        'Access-Control-Allow-Methods': 'POST, GET, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     }
 
@@ -60,12 +61,19 @@ async def audit_endpoint(req: func.HttpRequest) -> func.HttpResponse:
         # Ejecutar auditoría
         result = await run_audit_agent(request_data)
 
-        # Guardar en Blob Storage
+        # Generar PDF con el diseño de reportes del portal
+        pdf_bytes = build_pdf(
+            result['nombre_app'], result['fecha'],
+            result['brechas_resumen'], result['informe_md'],
+        )
+
+        # Guardar en Blob Storage (md + json + pdf)
         urls = await save_report(
             nombre_app=result['nombre_app'],
             fecha=result['fecha'],
             md=result['informe_md'],
             json_str=result['informe_json'],
+            pdf=pdf_bytes,
         )
         result.update(urls)
 
@@ -83,6 +91,34 @@ async def audit_endpoint(req: func.HttpRequest) -> func.HttpResponse:
             status_code=500,
             mimetype='application/json',
             headers=headers,
+        )
+
+
+@app.route(route="report", methods=["DELETE", "OPTIONS"])
+async def delete_report_endpoint(req: func.HttpRequest) -> func.HttpResponse:
+    """Borra un informe del historial (md + json + pdf)."""
+    headers = _cors_headers(req)
+    if req.method == 'OPTIONS':
+        return func.HttpResponse(status_code=200, headers=headers)
+    try:
+        nombre_app = req.params.get('nombre_app', '')
+        fecha      = req.params.get('fecha', '')
+        version    = req.params.get('version', '')
+        if not nombre_app or not fecha:
+            return func.HttpResponse(
+                body=json.dumps({'error': 'faltan nombre_app o fecha'}),
+                status_code=400, mimetype='application/json', headers=headers,
+            )
+        await delete_report(nombre_app, fecha, version)
+        return func.HttpResponse(
+            body=json.dumps({'ok': True}),
+            status_code=200, mimetype='application/json', headers=headers,
+        )
+    except Exception as exc:
+        logging.exception('Error en DELETE /api/report')
+        return func.HttpResponse(
+            body=json.dumps({'error': str(exc)}, ensure_ascii=False),
+            status_code=500, mimetype='application/json', headers=headers,
         )
 
 

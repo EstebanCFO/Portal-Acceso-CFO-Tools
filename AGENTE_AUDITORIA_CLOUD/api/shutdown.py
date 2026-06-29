@@ -41,17 +41,25 @@ def _kill_port(port: int) -> None:
     )
 
 
-def _kill_port_delayed(port: int, delay: int = 2) -> None:
-    """Mata el proceso del puerto tras `delay` segundos, en un proceso detached."""
-    subprocess.Popen(
-        ['powershell', '-NoProfile', '-Command', f"Start-Sleep -Seconds {delay}; {_kill_ps(port)}"],
-        creationflags=_DETACHED,
+def _kill_backend_delayed(delay: int = 2) -> None:
+    """Mata el backend (host de Functions) tras `delay`s, en un proceso detached.
+
+    El código corre en el worker de Python; su proceso padre (os.getppid()) es el
+    host `func`. taskkill /F /T sobre ese PID baja el árbol completo (host + worker)
+    y libera :7071. Además matamos por puerto como red de seguridad.
+    """
+    ppid = os.getppid()
+    ps = (
+        f"Start-Sleep -Seconds {delay}; "
+        f"taskkill /F /T /PID {ppid} 2>$null; "
+        f"{_kill_ps(BACKEND_PORT)}"
     )
+    subprocess.Popen(['powershell', '-NoProfile', '-Command', ps], creationflags=_DETACHED)
 
 
 def perform_shutdown() -> dict:
     """Baja todo el stack local. Vite y Azurite ya; el backend (self) con delay."""
     _kill_port(VITE_PORT)
     _kill_port(AZURITE_PORT)
-    _kill_port_delayed(BACKEND_PORT, delay=2)
+    _kill_backend_delayed(delay=2)
     return {'ok': True, 'stopped': [VITE_PORT, AZURITE_PORT, BACKEND_PORT]}

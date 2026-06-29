@@ -59,8 +59,8 @@ def _parse_blob_name(blob_name: str) -> dict | None:
     return {'nombre_app': nombre_app, 'fecha': fecha, 'version': version}
 
 
-async def save_report(nombre_app: str, fecha: str, md: str, json_str: str) -> dict:
-    """Guarda MD + JSON en Blob Storage. Detecta versión automáticamente."""
+async def save_report(nombre_app: str, fecha: str, md: str, json_str: str, pdf: bytes) -> dict:
+    """Guarda MD + JSON + PDF en Blob Storage. Detecta versión automáticamente."""
     container = _get_container()
 
     # Encontrar la versión disponible (sin pisar archivos existentes)
@@ -72,6 +72,7 @@ async def save_report(nombre_app: str, fecha: str, md: str, json_str: str) -> di
 
     md_blob_name   = f'{nombre_app}/{_build_blob_name(nombre_app, fecha, version, ".md")}'
     json_blob_name = f'{nombre_app}/{_build_blob_name(nombre_app, fecha, version, ".json")}'
+    pdf_blob_name  = f'{nombre_app}/{_build_blob_name(nombre_app, fecha, version, ".pdf")}'
 
     # Subir MD
     md_client = container.get_blob_client(md_blob_name)
@@ -81,10 +82,30 @@ async def save_report(nombre_app: str, fecha: str, md: str, json_str: str) -> di
     json_client = container.get_blob_client(json_blob_name)
     json_client.upload_blob(json_str.encode('utf-8'), overwrite=False, content_settings=_ct('application/json'))
 
+    # Subir PDF
+    pdf_client = container.get_blob_client(pdf_blob_name)
+    pdf_client.upload_blob(bytes(pdf), overwrite=False, content_settings=_ct('application/pdf'))
+
     return {
         'blob_url_md':   _with_sas(md_client, md_blob_name),
         'blob_url_json': _with_sas(json_client, json_blob_name),
+        'blob_url_pdf':  _with_sas(pdf_client, pdf_blob_name),
     }
+
+
+async def delete_report(nombre_app: str, fecha: str, version: str) -> None:
+    """Borra los 3 artefactos (md, json, pdf) de un informe del historial.
+
+    `version` viene como '' (primera) o 'v2'/'v3'… tal como lo expone list_reports.
+    """
+    container = _get_container()
+    suffix = f'-{version}' if version else ''
+    base = f'{nombre_app}/INFORME-{nombre_app}-{fecha}{suffix}'
+    for ext in ('.md', '.json', '.pdf'):
+        try:
+            container.delete_blob(f'{base}{ext}')
+        except Exception:
+            pass  # si un artefacto no existe (ej. informes viejos sin PDF), seguir
 
 
 async def list_reports() -> list[dict]:
@@ -101,12 +122,15 @@ async def list_reports() -> list[dict]:
         blob_client  = container.get_blob_client(blob.name)
         json_name    = blob.name[:-3] + '.json'
         json_client  = container.get_blob_client(json_name)
+        pdf_name     = blob.name[:-3] + '.pdf'
+        pdf_client   = container.get_blob_client(pdf_name)
         reports.append({
             'nombre_app': meta['nombre_app'],
             'fecha':      meta['fecha'],
             'version':    meta['version'],
             'url_md':     _with_sas(blob_client, blob.name),
             'url_json':   _with_sas(json_client, json_name),
+            'url_pdf':    _with_sas(pdf_client, pdf_name),
             'brechas':    {'alta': 0, 'media': 0, 'baja': 0},  # sin parsear para performance
         })
 

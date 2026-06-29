@@ -5,7 +5,7 @@ import json
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from audit_agent import run_audit_agent, _extract_domain, _parse_brechas
+from audit_agent import run_audit_agent, _extract_domain, _parse_brechas, _parse_repo_url
 
 class TestExtractDomain:
     def test_extrae_dominio_sin_www(self):
@@ -74,27 +74,50 @@ class TestRunAuditAgent:
         assert result['informe_md'] == '# Informe\n\n## Sin brechas detectadas'
 
     @pytest.mark.asyncio
-    async def test_redacta_pat_del_output(self):
+    async def test_repo_por_url_usa_pat_server_y_redacta(self):
         mock_message = MagicMock()
-        mock_message.content = [MagicMock(text='PAT usado: abc123 en la auditoria')]
+        mock_message.content = [MagicMock(text='PAT usado: serverpat99 en la auditoria')]
 
-        with patch('audit_agent.anthropic.Anthropic') as MockAnthropic:
+        with patch('audit_agent.anthropic.Anthropic') as MockAnthropic, \
+             patch.dict(os.environ, {'AZURE_DEVOPS_PAT': 'serverpat99'}):
             mock_client = MagicMock()
             mock_client.messages.create.return_value = mock_message
             MockAnthropic.return_value = mock_client
 
+            # El frontend ahora solo manda la URL del repo; sin org/project/pat.
             request = {
                 'type': 'repo',
-                'repo': {
-                    'platform': 'azure-devops',
-                    'org': 'mi-org', 'project': 'proj', 'repo': 'repo1', 'branch': 'main',
-                    'pat': 'abc123'
-                },
+                'repo': {'url': 'https://dev.azure.com/SWF-CFO/Web%20Institucional/_git/Web%20Institucional'},
                 'normativas': ['wcag22'],
-                '_archivos_mock': {'index.html': '<html></html>'},
             }
-            # Inyectamos archivos mockeados para no llamar a fetch_repo
-            with patch('audit_agent.fetch_repo', new_callable=AsyncMock, return_value={'index.html': '<html></html>'}):
+            with patch('audit_agent.fetch_repo', new_callable=AsyncMock, return_value={'index.html': '<html></html>'}) as mock_fetch:
                 result = await run_audit_agent(request)
 
-        assert 'abc123' not in result['informe_md']
+        # El PAT server-side no debe filtrarse al output
+        assert 'serverpat99' not in result['informe_md']
+        # nombre_app derivado del repo parseado
+        assert result['nombre_app'] == 'Web Institucional'
+        # fetch_repo recibió org/project/repo parseados + el PAT del entorno
+        repo_data = mock_fetch.call_args.args[0]
+        assert repo_data['org'] == 'SWF-CFO'
+        assert repo_data['project'] == 'Web Institucional'
+        assert repo_data['repo'] == 'Web Institucional'
+        assert repo_data['pat'] == 'serverpat99'
+
+
+class TestParseRepoUrl:
+    def test_dev_azure_com_con_espacios_encodeados(self):
+        r = _parse_repo_url('https://dev.azure.com/SWF-CFO/Web%20Institucional/_git/Web%20Institucional')
+        assert r == {'org': 'SWF-CFO', 'project': 'Web Institucional', 'repo': 'Web Institucional'}
+
+    def test_dev_azure_com_simple(self):
+        r = _parse_repo_url('https://dev.azure.com/mi-org/proj/_git/repo1')
+        assert r == {'org': 'mi-org', 'project': 'proj', 'repo': 'repo1'}
+
+    def test_visualstudio_legacy(self):
+        r = _parse_repo_url('https://miorg.visualstudio.com/proj/_git/repo1')
+        assert r == {'org': 'miorg', 'project': 'proj', 'repo': 'repo1'}
+
+    def test_url_invalida_lanza(self):
+        with pytest.raises(ValueError):
+            _parse_repo_url('https://github.com/user/repo')
