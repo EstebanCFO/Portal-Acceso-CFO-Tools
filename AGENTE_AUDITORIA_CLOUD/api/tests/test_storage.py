@@ -29,12 +29,16 @@ class TestSaveReport:
         mock_container.get_blob_client.return_value = mock_blob_client
         mock_container.list_blobs.return_value = iter([])  # sin blobs existentes
 
-        with patch('blob_storage.ContainerClient.from_connection_string', return_value=mock_container):
+        with patch('blob_storage.ContainerClient.from_connection_string', return_value=mock_container), \
+             patch('blob_storage.generate_blob_sas', return_value='sig=FAKESAS'):
             result = await save_report('bancogalicia', '2026-06-28', '# Informe', '{}')
 
         assert 'blob_url_md' in result
         assert 'blob_url_json' in result
         assert mock_blob_client.upload_blob.call_count == 2  # MD + JSON
+        # Las URLs deben llevar el SAS token para ser descargables sin auth
+        assert 'sig=FAKESAS' in result['blob_url_md']
+        assert 'sig=FAKESAS' in result['blob_url_json']
 
 class TestListReports:
     @pytest.mark.asyncio
@@ -51,9 +55,13 @@ class TestListReports:
         mock_container.list_blobs.return_value = iter([mock_blob1, mock_blob2, mock_blob3])
         mock_container.get_blob_client.return_value.url = 'https://storage.azure.com/test'
 
-        with patch('blob_storage.ContainerClient.from_connection_string', return_value=mock_container):
+        with patch('blob_storage.ContainerClient.from_connection_string', return_value=mock_container), \
+             patch('blob_storage.generate_blob_sas', return_value='sig=FAKESAS'):
             result = await list_reports()
 
         # Solo MD (no JSON)
         assert len(result) == 2
         assert result[0]['nombre_app'] in ('bancogalicia', 'uala')
+        # Los links del historial llevan SAS para descargarse sin auth
+        assert 'sig=FAKESAS' in result[0]['url_md']
+        assert 'sig=FAKESAS' in result[0]['url_json']

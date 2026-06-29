@@ -4,5 +4,12 @@
 import os
 
 os.environ.setdefault('ANTHROPIC_API_KEY', 'sk-ant-test-dummy')
-os.environ.setdefault('AZURE_STORAGE_CONNECTION_STRING', 'UseDevelopmentStorage=true')
+# Connection string dev de Azurite (con AccountName/AccountKey) para que la
+# generación de SAS tenga material con qué trabajar en los tests.
+os.environ.setdefault(
+    'AZURE_STORAGE_CONNECTION_STRING',
+    'DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;'
+    'AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;'
+    'BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;'
+)
 os.environ.setdefault('BLOB_CONTAINER_NAME', 'audit-reports')

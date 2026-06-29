@@ -1,14 +1,43 @@
 # AGENTE_AUDITORIA_CLOUD/api/blob_storage.py
 import os
 import re
-from azure.storage.blob import ContainerClient
+from datetime import datetime, timedelta, timezone
+from azure.storage.blob import ContainerClient, generate_blob_sas, BlobSasPermissions
 
 CONTAINER_NAME = os.environ.get('BLOB_CONTAINER_NAME', 'audit-reports')
 CONN_STRING    = os.environ.get('AZURE_STORAGE_CONNECTION_STRING', '')
+SAS_TTL_DAYS   = int(os.environ.get('SAS_TTL_DAYS', '7'))
 
 
 def _get_container() -> ContainerClient:
     return ContainerClient.from_connection_string(CONN_STRING, CONTAINER_NAME)
+
+
+def _conn_parts() -> tuple[str | None, str | None]:
+    """Extrae AccountName y AccountKey de la connection string."""
+    parts = dict(p.split('=', 1) for p in CONN_STRING.split(';') if '=' in p)
+    return parts.get('AccountName'), parts.get('AccountKey')
+
+
+def _with_sas(blob_client, blob_name: str) -> str:
+    """Devuelve la URL del blob con un SAS token de solo-lectura y expiración.
+
+    Los blobs son privados; sin SAS el navegador recibe AuthorizationFailure.
+    Funciona igual en Azurite (dev) y en Azure (prod). Si no hay AccountKey
+    en la connection string, devuelve la URL pelada (mejor que romper).
+    """
+    account_name, account_key = _conn_parts()
+    if not account_key:
+        return blob_client.url
+    sas = generate_blob_sas(
+        account_name=account_name,
+        container_name=CONTAINER_NAME,
+        blob_name=blob_name,
+        account_key=account_key,
+        permission=BlobSasPermissions(read=True),
+        expiry=datetime.now(timezone.utc) + timedelta(days=SAS_TTL_DAYS),
+    )
+    return f'{blob_client.url}?{sas}'
 
 
 def _build_blob_name(nombre_app: str, fecha: str, version: int, ext: str = '.md') -> str:
@@ -53,8 +82,8 @@ async def save_report(nombre_app: str, fecha: str, md: str, json_str: str) -> di
     json_client.upload_blob(json_str.encode('utf-8'), overwrite=False, content_settings=_ct('application/json'))
 
     return {
-        'blob_url_md':   md_client.url,
-        'blob_url_json': json_client.url,
+        'blob_url_md':   _with_sas(md_client, md_blob_name),
+        'blob_url_json': _with_sas(json_client, json_blob_name),
     }
 
 
@@ -76,8 +105,8 @@ async def list_reports() -> list[dict]:
             'nombre_app': meta['nombre_app'],
             'fecha':      meta['fecha'],
             'version':    meta['version'],
-            'url_md':     blob_client.url,
-            'url_json':   json_client.url,
+            'url_md':     _with_sas(blob_client, blob.name),
+            'url_json':   _with_sas(json_client, json_name),
             'brechas':    {'alta': 0, 'media': 0, 'baja': 0},  # sin parsear para performance
         })
 
