@@ -302,6 +302,20 @@ def ensure_ingest_uploads_table(conn) -> None:
     conn.commit()
 
 
+_ADD_SEMAFORO_COLUMNS = """
+ALTER TABLE semaforo_monthly_metrics
+    ADD COLUMN IF NOT EXISTS project_label VARCHAR(200),
+    ADD COLUMN IF NOT EXISTS tipo          VARCHAR(30);
+"""
+
+
+def ensure_semaforo_columns(conn) -> None:
+    """Agrega project_label y tipo a semaforo_monthly_metrics (idempotente)."""
+    with conn.cursor() as cur:
+        cur.execute(_ADD_SEMAFORO_COLUMNS)
+    conn.commit()
+
+
 # ── Ingesta principal (retorna stats) ─────────────────────────────────────────
 
 def ingest_from_file(excel_path: str, dry_run: bool = False) -> dict:
@@ -343,6 +357,7 @@ def ingest_from_file(excel_path: str, dry_run: bool = False) -> dict:
     try:
         # Migración: crea ingest_uploads si no existe
         ensure_ingest_uploads_table(conn)
+        ensure_semaforo_columns(conn)
 
         with conn:
             with conn.cursor() as cur:

@@ -161,6 +161,8 @@ class SemaforoMonthlyMetric(Base):
     project_id:                             Mapped[Optional[int]]  = mapped_column(ForeignKey('projects.id'), nullable=True)
     period_date:                            Mapped[date]           = mapped_column(Date, nullable=False)
     semaforo_type:                          Mapped[str]            = mapped_column(String(60), nullable=False)
+    project_label:                          Mapped[Optional[str]]  = mapped_column(String(200))
+    tipo:                                   Mapped[Optional[str]]  = mapped_column(String(30))
 
     resultado_real:                         Mapped[Optional[Decimal]] = mapped_column(Numeric(6, 4))
     resultado_esperado:                     Mapped[Optional[Decimal]] = mapped_column(Numeric(6, 4))
