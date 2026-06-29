@@ -3,3 +3,4 @@ flask-cors>=4.0.0
 python-dotenv>=1.0.0
 requests>=2.31.0
 reportlab>=4.2.0
+truststore>=0.9.0   # usa el cert store del SO para TLS en redes corporativas

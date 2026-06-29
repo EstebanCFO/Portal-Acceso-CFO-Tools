@@ -270,6 +270,32 @@ Altura fija **48px**. `flex-shrink: 0` en el layout flex.
 
 ---
 
+## Patrón de informe / dashboard compacto ⭐ (premisa — 2026-06-29)
+
+> **Premisa de diseño para toda pantalla de datos/reporte del portal de aquí en más.**
+> Validado y aplicado primero en **Reporte DevOps** (informe por proyecto). Cuando una pantalla muestre el estado de "algo" con métricas + detalle, seguir este patrón antes de inventar layout nuevo.
+
+**Principios:**
+
+1. **Jerarquía con un "hero" de salud.** Una banda superior `--navy` (r-12px, padding 16–22px) que responde de un vistazo "¿cómo está esto?": título grande + badge de estado + 2–4 KPIs a la derecha (incluido un semáforo de riesgo y un anillo de avance). El resto de la pantalla es el detalle que respalda ese resumen.
+2. **Compactar, no esconder.** Mantener toda la info, pero densificar: listas largas → **franjas horizontales con scroll** de mini-cards (no tablas altas); secciones apiladas → **2 columnas** (lo primario más ancho `1.35fr`, lo secundario/referencia `1fr`); detalle voluminoso (work items) → **carpetas colapsadas por defecto**.
+3. **Visual sobre número suelto.** Preferir **anillos de progreso** (donut con `conic-gradient`), **barras finas** (7–8px) y **chips de estado/riesgo** por sobre texto plano. Color semántico del DS: `--green` ok/cerrado, `--orange` advertencia/abierto, `--red` crítico, `--blue` futuro/info.
+
+**Tokens y componentes reutilizables (clases `rdo-*` en Reporte DevOps, replicables):**
+
+| Componente | Clase base | Notas |
+|-----------|-----------|-------|
+| Hero de salud | `.rdo-hero` | fondo `--navy`, KPIs a la derecha (`.rdo-kpi`), anillo `.rdo-hero-ring` |
+| Anillo de avance | `.rdo-ring` / `.rdo-hero-ring` | `conic-gradient(var(--c) calc(var(--p)*1%), …)`; se setea con `--p` (pct) y `--c` (color) por inline style |
+| Chip de riesgo | `.rdo-risk-chip` + `.risk-bajo/medio/alto/na` | verde / naranja / rojo / gris |
+| Franja cronológica | `.rdo-crono-track` + `.rdo-sp` | scroll horizontal de mini-cards; estado por color (`.past/.current/.future`) |
+| Grid del informe | `.rdo-report-grid` | `1.35fr 1fr`, colapsa a 1 col en `<860px` |
+| Barra fina | `.rdo-bar` | 7px, fondo `--gray2`, fill semántico |
+
+**Reglas que NO cambian:** sin gradientes decorativos (el `conic-gradient` del anillo es funcional, no decorativo), sin sombras pesadas, cards r-12px, tipografía system-ui/Segoe UI, paleta del DS. El único fondo oscuro permitido fuera del header es el hero (`--navy`), consistente con el welcome banner.
+
+---
+
 ## Cards, formularios, botones, badges, KPI boxes, spinner, error bar
 
 > Idénticos al DS canónico. No se replican aquí para evitar divergencia.  
@@ -317,6 +343,7 @@ Altura fija **48px**. `flex-shrink: 0` en el layout flex.
 - [ ] Tipografía system-ui / Segoe UI
 - [ ] Botón principal en `--navy`
 - [ ] Sin gradientes · Sin sombras pesadas
+- [ ] Pantallas de datos/reporte: aplicar el **patrón de informe compacto** (hero de salud + franjas horizontales + 2 columnas + anillos/barras/chips)
 - [ ] AppFrame: `position: absolute; inset: 0` — sin borde
 - [ ] Iframe sin borde, `width: 100%`, `flex: 1`
 - [ ] `.portal-body` con `position: relative` y `overflow: hidden`

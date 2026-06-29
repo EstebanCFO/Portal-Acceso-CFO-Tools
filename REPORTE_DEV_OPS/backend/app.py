@@ -22,6 +22,16 @@ from flask import Flask, jsonify, send_file, request
 from flask_cors import CORS
 from dotenv import load_dotenv
 
+# Usa el almacén de certificados del SO (Windows) para validar TLS.
+# Necesario en redes corporativas que interceptan TLS con una CA propia:
+# certifi no la tiene y dev.azure.com falla con CERTIFICATE_VERIFY_FAILED.
+# Debe ejecutarse antes de cualquier llamada HTTPS (antes de crear SESSION).
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except ImportError:
+    pass  # sin truststore se usa certifi (entornos sin interceptación TLS)
+
 load_dotenv()
 
 app = Flask(__name__)
@@ -1109,6 +1119,18 @@ def get_sprint_report():
         anterior = (sorted(pasados, key=lambda x: attr(x)['finishDate'], reverse=True)[0]
                     if pasados else None)
 
+        # Cronograma: todos los sprints (solo metadata, sin llamadas extra a Azure).
+        # Ordenados por startDate; los sin fecha quedan al final.
+        all_sprints = [
+            {
+                'name':       s['name'],
+                'startDate':  attr(s).get('startDate',  '')[:10] if attr(s).get('startDate')  else None,
+                'finishDate': attr(s).get('finishDate', '')[:10] if attr(s).get('finishDate') else None,
+                'estado':     attr(s).get('timeFrame', 'unknown'),
+            }
+            for s in sorted(iterations, key=lambda x: attr(x).get('startDate') or '9999')
+        ]
+
         def build(sprint: dict) -> dict:
             """Construye datos de un sprint: items Task/Bug + test plan progress."""
             a = attr(sprint)
@@ -1140,6 +1162,7 @@ def get_sprint_report():
             'firstSprintDate': first_sprint_dt,
             'current':         current_data,
             'anterior':        anterior_data,
+            'allSprints':      all_sprints,
         }
         _sprint_cache.put(cache_key, result)   # Opción 3 — guardar en cache
         return jsonify(result)

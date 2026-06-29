@@ -48,6 +48,9 @@ db/_tmp/
 # Claude Code — configuración local de máquina (no compartir)
 .claude/settings.local.json
 
+# Superpowers — mockups del companion de brainstorming (efímeros)
+.superpowers/
+
 # Archivos Excel con datos sensibles
 *.xlsx
 

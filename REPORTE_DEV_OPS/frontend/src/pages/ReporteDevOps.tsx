@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { Org, Proyecto, SprintReportResult, WorkItem, FullReportEntry, OrgHabilitada } from '../types'
+import type { Org, Proyecto, SprintReportResult, SprintSummary, WorkItem, FullReportEntry, OrgHabilitada } from '../types'
 import { apiOrgsActivas, apiProyectos, apiSprintReport, apiSalir, apiFullReport,
          apiOrgsHabilitadas, apiGuardarOrgsHabilitadas } from '../api/client'
 
@@ -99,7 +99,7 @@ function avatarColor(name: string): string {
 
 // ── Carpeta colapsable de work items ──────────────────────────
 function FolderSection({ type, items }: { type: 'Task' | 'Bug'; items: WorkItem[] }) {
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
   const pillCls = type === 'Task' ? 'rdo-pill-task' : 'rdo-pill-bug'
 
   return (
@@ -165,25 +165,115 @@ function FolderSection({ type, items }: { type: 'Task' | 'Bug'; items: WorkItem[
   )
 }
 
-// ── Sprint Actual ──────────────────────────────────────────────
-function SprintCurrentSection({
+// ── Cronograma de Sprints (tabla compacta) ────────────────────
+const ESTADO_LABEL: Record<SprintSummary['estado'], string> = {
+  past:    'Finalizado',
+  current: 'Actual',
+  future:  'Futuro',
+  unknown: 'Sin estado',
+}
+
+// Variables CSS para el anillo de progreso (donut con conic-gradient)
+function ringVars(pct: number, color: string): React.CSSProperties {
+  return { ['--p']: pct, ['--c']: color } as React.CSSProperties
+}
+
+const RISK_CLS: Record<RiskResult['level'], string> = {
+  BAJO: 'risk-bajo', MEDIO: 'risk-medio', ALTO: 'risk-alto', 'N/A': 'risk-na',
+}
+
+// ── Hero: resumen de salud del proyecto (sprint actual) ────────
+function SprintHero({
   sprint,
   firstSprintDate,
 }: {
   sprint:          NonNullable<SprintReportResult['current']>
   firstSprintDate: string | null
 }) {
+  const { name, startDate, finishDate, items } = sprint
+  const closed = items.filter(i => CLOSED_STATES.has(i.state)).length
+  const total  = items.length
+  const open   = total - closed
+  const avance = total > 0 ? Math.round(closed / total * 100) : 0
+  const risk   = calcRisk(startDate, finishDate, open, closed)
+  // Colores claros para contraste sobre fondo navy
+  const ringColor = avance >= 70 ? 'var(--green-a)' : avance >= 40 ? '#F0A752' : '#E5786E'
+
+  return (
+    <div className="rdo-hero">
+      <div className="rdo-hero-main">
+        <div className="rdo-hero-proj">{name}</div>
+        <div className="rdo-hero-sub">
+          <span className="rdo-hero-badge">Sprint actual</span>
+          <span>{fmtDate(startDate)} → {fmtDate(finishDate)}</span>
+          {risk.level !== 'N/A' && risk.remaining > 0 && (
+            <span>· {risk.remaining} días hábiles restantes</span>
+          )}
+          {firstSprintDate && <span>· primer sprint {fmtDate(firstSprintDate)}</span>}
+        </div>
+      </div>
+      <div className="rdo-hero-kpis">
+        <div className="rdo-hero-ring" style={ringVars(avance, ringColor)}>
+          <div className="rdo-hero-ring-in">{avance}%</div>
+        </div>
+        <div className="rdo-kpi">
+          <span className="rdo-kpi-label">Avance</span>
+          <span className="rdo-kpi-val">{closed}<small>/{total}</small></span>
+        </div>
+        <div className="rdo-kpi">
+          <span className="rdo-kpi-label">Velocidad</span>
+          <span className="rdo-kpi-val">{risk.elapsed > 0 ? risk.velocity.toFixed(1) : '—'}<small>/día</small></span>
+        </div>
+        <div className="rdo-kpi">
+          <span className="rdo-kpi-label">Riesgo</span>
+          <span className={`rdo-risk-chip ${RISK_CLS[risk.level]}`}>
+            <span className="rdo-risk-dot" />{risk.level}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Cronograma de Sprints (franja horizontal compacta) ────────
+function SprintScheduleSection({ sprints }: { sprints: SprintSummary[] }) {
+  if (!sprints || sprints.length === 0) return null
+
+  return (
+    <div className="card rdo-crono">
+      <div className="rdo-crono-hd">
+        <span className="rdo-crono-title">📅 Cronograma de Sprints</span>
+        <span className="rdo-crono-count">{sprints.length} sprints</span>
+      </div>
+      <div className="rdo-crono-track">
+        {sprints.map((s, idx) => (
+          <div key={`${s.name}-${idx}`} className={`rdo-sp ${s.estado}`}>
+            <span className="rdo-sp-name">{s.name}</span>
+            <span className="rdo-sp-dates">{fmtDate(s.startDate)} → {fmtDate(s.finishDate)}</span>
+            <span className="rdo-sp-state">
+              <span className="rdo-sp-dot" />{ESTADO_LABEL[s.estado]}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Sprint Actual ──────────────────────────────────────────────
+function SprintCurrentSection({
+  sprint,
+}: {
+  sprint: NonNullable<SprintReportResult['current']>
+}) {
   const { name, startDate, finishDate, items, testplan } = sprint
   const tasks   = items.filter(i => i.type === 'Task')
   const bugs    = items.filter(i => i.type === 'Bug')
   const closed  = items.filter(i => CLOSED_STATES.has(i.state)).length
-  const open    = items.length - closed
   const total   = items.length
+  const open    = total - closed
   const avance  = total > 0 ? Math.round(closed / total * 100) : 0
-  const risk    = calcRisk(startDate, finishDate, open, closed)
-
-  const avanceColor  = avance >= 70 ? 'var(--green)' : avance >= 40 ? 'var(--orange)' : 'var(--red)'
-  const riskCls      = { BAJO: 'risk-bajo', MEDIO: 'risk-medio', ALTO: 'risk-alto', 'N/A': 'risk-na' }[risk.level]
+  const avanceColor = avance >= 70 ? 'var(--green)' : avance >= 40 ? 'var(--orange)' : 'var(--red)'
 
   const tp    = testplan
   const cPct  = tp.pctCorridos ?? 0
@@ -192,106 +282,67 @@ function SprintCurrentSection({
   const pFill = pPct >= 80 ? 'var(--green)' : pPct >= 50 ? 'var(--orange)' : 'var(--red)'
 
   return (
-    <div className="card rdo-sprint-card">
+    <div className="card rdo-sec">
 
       {/* ── Cabecera ── */}
-      <div className="rdo-sprint-hdr">
-        <span className="badge badge-green">SPRINT ACTUAL</span>
-        <span className="rdo-sprint-name">{name}</span>
-        <span className="sprint-fechas">{fmtDate(startDate)} → {fmtDate(finishDate)}</span>
-        {firstSprintDate && (
-          <span className="rdo-first-sprint">Primer sprint: {fmtDate(firstSprintDate)}</span>
-        )}
+      <div className="rdo-sec-hd">
+        <span className="badge badge-green">Sprint actual</span>
+        <span className="rdo-sec-name">{name}</span>
+        <span className="rdo-sec-dates">{fmtDate(startDate)} → {fmtDate(finishDate)}</span>
       </div>
 
-      {/* ── 4 tarjetas de métricas ── */}
-      <div className="rdo-metrics-row">
-        <div className="rdo-metric-card">
-          <div className="rdo-metric-label">Total tasks</div>
-          <div className="rdo-metric-value">{total}</div>
-          <div className="rdo-metric-sub">{open} abiertas · {closed} cerradas</div>
+      {/* ── Anillo de avance + stats ── */}
+      <div className="rdo-mrow">
+        <div className="rdo-ring" style={ringVars(avance, avanceColor)}>
+          <div className="rdo-ring-in"><b>{avance}%</b><span>avance</span></div>
         </div>
-        <div className="rdo-metric-card">
-          <div className="rdo-metric-label">% Avance</div>
-          <div className="rdo-metric-value" style={{ color: avanceColor }}>{avance}%</div>
-          <div className="rdo-metric-sub">{closed} de {total} cerradas</div>
-        </div>
-        <div className="rdo-metric-card">
-          <div className="rdo-metric-label">Velocidad actual</div>
-          <div className="rdo-metric-value">
-            {risk.elapsed > 0 ? risk.velocity.toFixed(1) : '—'}
-          </div>
-          <div className="rdo-metric-sub">tasks/día · {risk.elapsed} días hábiles</div>
-        </div>
-        <div className={`rdo-metric-card rdo-risk-card ${riskCls ?? ''}`}>
-          <div className="rdo-metric-label">Riesgo</div>
-          <div className="rdo-metric-value">{risk.level}</div>
-          <div className="rdo-metric-sub">{risk.subText}</div>
+        <div className="rdo-mstats">
+          <div className="rdo-mstat"><b>{total}</b><span>Total</span></div>
+          <div className="rdo-mstat"><b className={open > 0 ? 'v-open' : ''}>{open}</b><span>Abiertas</span></div>
+          <div className="rdo-mstat"><b className="v-closed">{closed}</b><span>Cerradas</span></div>
         </div>
       </div>
 
-      {/* ── Barra de progreso ── */}
-      <div className="rdo-progress-section">
-        <div className="rdo-progress-meta">
-          <span>{closed} cerradas de {total}</span>
-          <span style={{ fontWeight: 600, color: avanceColor }}>{avance}%</span>
-        </div>
-        <div className="rdo-progress-track">
-          <div className="rdo-progress-fill" style={{ width: `${avance}%`, background: avanceColor }} />
-        </div>
-      </div>
-
-      {/* ── Test Plan ── */}
-      <div className="rdo-inner-section">
-        <div className="sprint-section-title">Test Plan</div>
+      {/* ── Test Plan compacto ── */}
+      <div className="rdo-tp">
+        <div className="rdo-tp-title">Test Plan</div>
         {!tp.encontrado
-          ? <span className="text-muted" style={{ fontSize: 13 }}>Sin test plan activo asociado al sprint.</span>
+          ? <span className="text-muted" style={{ fontSize: 12 }}>Sin test plan activo asociado al sprint.</span>
           : (
             <>
-              <div className="tp-plan-name">
+              <div className="rdo-tp-plan">
                 {tp.planNombre}
                 {tp.totalPlanes > 1 && (
-                  <span className="text-small text-muted" style={{ marginLeft: 8, fontWeight: 400 }}>
-                    ({tp.totalPlanes} planes activos)
-                  </span>
+                  <span className="text-muted" style={{ marginLeft: 6, fontWeight: 400 }}>({tp.totalPlanes} planes)</span>
                 )}
               </div>
-              <div className="tp-rows">
-                <div className="tp-row">
-                  <span className="tp-label">Test Cases definidos</span>
-                  <span className="tp-value">{tp.total}</span>
-                </div>
-                <div className="tp-row">
-                  <span className="tp-label">Test Points corridos</span>
-                  <span className="tp-value">{tp.corridos} / {tp.total}</span>
-                  <div className="progress-wrap" style={{ flex: 1 }}>
-                    <div className="progress-bar">
-                      <div className="progress-fill" style={{ width: `${cPct}%`, background: cFill }} />
-                    </div>
-                    <span className="progress-label">{cPct}%</span>
-                  </div>
-                </div>
-                <div className="tp-row">
-                  <span className="tp-label">Pass Rate</span>
-                  <span className="tp-value">{tp.pasados} / {tp.corridos}</span>
-                  <div className="progress-wrap" style={{ flex: 1 }}>
-                    <div className="progress-bar">
-                      <div className="progress-fill" style={{ width: `${pPct}%`, background: pFill }} />
-                    </div>
-                    <span className="progress-label">{pPct}%</span>
-                  </div>
-                </div>
+              <div className="rdo-tp-line">
+                <span className="rdo-tp-lab">Test Cases definidos</span>
+                <span className="rdo-tp-num">{tp.total}</span>
+                <span style={{ flex: 1 }} />
+              </div>
+              <div className="rdo-tp-line">
+                <span className="rdo-tp-lab">Test Points corridos</span>
+                <span className="rdo-tp-num">{tp.corridos}/{tp.total}</span>
+                <div className="rdo-bar"><i style={{ width: `${cPct}%`, background: cFill }} /></div>
+                <span className="rdo-tp-pct" style={{ color: cFill }}>{cPct}%</span>
+              </div>
+              <div className="rdo-tp-line">
+                <span className="rdo-tp-lab">Pass Rate</span>
+                <span className="rdo-tp-num">{tp.pasados}/{tp.corridos}</span>
+                <div className="rdo-bar"><i style={{ width: `${pPct}%`, background: pFill }} /></div>
+                <span className="rdo-tp-pct" style={{ color: pFill }}>{pPct}%</span>
               </div>
             </>
           )
         }
       </div>
 
-      {/* ── Work Items por tipo (carpetas colapsables) ── */}
-      <div className="rdo-inner-section">
-        <div className="sprint-section-title">Work Items del sprint</div>
+      {/* ── Work Items (carpetas colapsables) ── */}
+      <div className="rdo-wi-block">
+        <div className="rdo-tp-title">Work Items del sprint</div>
         {tasks.length === 0 && bugs.length === 0
-          ? <span className="text-muted" style={{ fontSize: 13 }}>Sin Tasks ni Bugs en este sprint.</span>
+          ? <span className="text-muted" style={{ fontSize: 12 }}>Sin Tasks ni Bugs en este sprint.</span>
           : (
             <>
               {tasks.length > 0 && <FolderSection type="Task" items={tasks} />}
@@ -314,40 +365,38 @@ function SprintAnteriorSection({
   const tasks  = items.filter(i => i.type === 'Task')
   const bugs   = items.filter(i => i.type === 'Bug')
   const closed = items.filter(i => CLOSED_STATES.has(i.state)).length
-  const open   = items.length - closed
   const total  = items.length
+  const open   = total - closed
+  const avance = total > 0 ? Math.round(closed / total * 100) : 0
+  const avanceColor = avance >= 70 ? 'var(--green)' : avance >= 40 ? 'var(--orange)' : 'var(--red)'
 
   return (
-    <div className="card rdo-sprint-card">
+    <div className="card rdo-sec">
 
       {/* ── Cabecera ── */}
-      <div className="rdo-sprint-hdr">
-        <span className="badge badge-orange">SPRINT ANTERIOR</span>
-        <span className="rdo-sprint-name">{name}</span>
-        <span className="sprint-fechas">{fmtDate(startDate)} → {fmtDate(finishDate)}</span>
+      <div className="rdo-sec-hd">
+        <span className="badge badge-orange">Sprint anterior</span>
+        <span className="rdo-sec-name">{name}</span>
+        <span className="rdo-sec-dates">{fmtDate(startDate)} → {fmtDate(finishDate)}</span>
       </div>
 
-      {/* ── Totales ── */}
-      <div className="rdo-stats-row">
-        <div className="rdo-stat">
-          <div className="rdo-stat-label">Total</div>
-          <div className="rdo-stat-value">{total}</div>
+      {/* ── Anillo de avance + stats ── */}
+      <div className="rdo-mrow">
+        <div className="rdo-ring" style={ringVars(avance, avanceColor)}>
+          <div className="rdo-ring-in"><b>{avance}%</b><span>avance</span></div>
         </div>
-        <div className="rdo-stat">
-          <div className="rdo-stat-label">Abiertas</div>
-          <div className={`rdo-stat-value${open > 0 ? ' val-open' : ''}`}>{open}</div>
-        </div>
-        <div className="rdo-stat">
-          <div className="rdo-stat-label">Cerradas</div>
-          <div className="rdo-stat-value val-closed">{closed}</div>
+        <div className="rdo-mstats">
+          <div className="rdo-mstat"><b>{total}</b><span>Total</span></div>
+          <div className="rdo-mstat"><b className={open > 0 ? 'v-open' : ''}>{open}</b><span>Abiertas</span></div>
+          <div className="rdo-mstat"><b className="v-closed">{closed}</b><span>Cerradas</span></div>
         </div>
       </div>
 
-      {/* ── Work Items por tipo ── */}
-      <div className="rdo-inner-section">
-        <div className="sprint-section-title">Work Items del sprint</div>
+      {/* ── Work Items (carpetas colapsables) ── */}
+      <div className="rdo-wi-block">
+        <div className="rdo-tp-title">Work Items del sprint</div>
         {tasks.length === 0 && bugs.length === 0
-          ? <span className="text-muted" style={{ fontSize: 13 }}>Sin Tasks ni Bugs en este sprint.</span>
+          ? <span className="text-muted" style={{ fontSize: 12 }}>Sin Tasks ni Bugs en este sprint.</span>
           : (
             <>
               {tasks.length > 0 && <FolderSection type="Task" items={tasks} />}
@@ -517,10 +566,7 @@ function ClientBlock({ entry }: { entry: FullReportEntry }) {
           <div className="sprints-grid">
             {entry.current
               ? (
-                <SprintCurrentSection
-                  sprint={entry.current}
-                  firstSprintDate={null}
-                />
+                <SprintCurrentSection sprint={entry.current} />
               )
               : (
                 <div className="card">
@@ -811,18 +857,18 @@ export default function ReporteDevOps() {
 
         {/* Reporte individual */}
         {reportData && !loadingReport && (
-          <div className="sprints-grid">
+          <>
+          {reportData.current && (
+            <SprintHero sprint={reportData.current} firstSprintDate={reportData.firstSprintDate} />
+          )}
+          <SprintScheduleSection sprints={reportData.allSprints} />
+          <div className="rdo-report-grid">
             {reportData.current
-              ? (
-                <SprintCurrentSection
-                  sprint={reportData.current}
-                  firstSprintDate={reportData.firstSprintDate}
-                />
-              )
+              ? <SprintCurrentSection sprint={reportData.current} />
               : (
-                <div className="card">
-                  <div className="sprint-card-header">
-                    <span className="badge badge-gray">SPRINT ACTUAL</span>
+                <div className="card rdo-sec">
+                  <div className="rdo-sec-hd">
+                    <span className="badge badge-gray">Sprint actual</span>
                   </div>
                   <p className="text-muted" style={{ fontSize: 13 }}>
                     No hay sprint activo en este proyecto.
@@ -833,9 +879,9 @@ export default function ReporteDevOps() {
             {reportData.anterior
               ? <SprintAnteriorSection sprint={reportData.anterior} />
               : (
-                <div className="card">
-                  <div className="sprint-card-header">
-                    <span className="badge badge-orange">SPRINT ANTERIOR</span>
+                <div className="card rdo-sec">
+                  <div className="rdo-sec-hd">
+                    <span className="badge badge-orange">Sprint anterior</span>
                   </div>
                   <p className="text-muted" style={{ fontSize: 13 }}>
                     Sin sprint anterior registrado.
@@ -844,6 +890,7 @@ export default function ReporteDevOps() {
               )
             }
           </div>
+          </>
         )}
 
         {/* Consulta Full — todos los clientes */}

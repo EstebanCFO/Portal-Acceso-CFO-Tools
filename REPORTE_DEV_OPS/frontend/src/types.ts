@@ -176,11 +176,23 @@ export interface SprintDetail {
   testplan:   TestPlanProgress
 }
 
+/** Estado de un sprint según timeFrame de Azure DevOps */
+export type SprintEstado = 'past' | 'current' | 'future' | 'unknown'
+
+/** Resumen de un sprint para el cronograma (sin work items) */
+export interface SprintSummary {
+  name:       string
+  startDate:  string | null
+  finishDate: string | null
+  estado:     SprintEstado
+}
+
 /** Respuesta de GET /api/sprint-report */
 export interface SprintReportResult {
   firstSprintDate: string | null
   current:         SprintDetail | null
   anterior:        SprintDetail | null
+  allSprints:      SprintSummary[]
 }
 
 // ── Organizaciones Habilitadas ────────────────────────────────
