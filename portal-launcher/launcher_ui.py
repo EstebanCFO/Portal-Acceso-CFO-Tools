@@ -98,14 +98,14 @@ def _run_proc(cmd: str, cwd: str) -> subprocess.Popen:
 
 class LauncherUI:
 
-    W, H    = 300, 248      # ligeramente más ancho para la barra de progreso
+    W, H    = 340, 300     # antes: 300, 248
     HDR_H   = 46
-    SPIN_R  = 28            # radio del arco del spinner (px)
+    SPIN_R  = 42           # antes: 28
     SPIN_MS = 25            # ms entre frames del spinner
     SPIN_STEP = 9           # grados por frame
-    BAR_W   = 230           # ancho de la barra de progreso
-    BAR_H   = 8             # alto de la barra de progreso
-    BAR_R   = 4             # radio de esquinas redondeadas
+    BAR_W   = 280          # antes: 230 — ahora es el ancho de los segmentos
+    BAR_H   = 4             # alto de cada segmento
+    BAR_R   = 3             # radio de esquinas de segmentos
 
     def __init__(self):
         self._procs:   dict = {}
@@ -152,12 +152,12 @@ class LauncherUI:
         hdr.bind('<Button-1>',  self._drag_start)
         hdr.bind('<B1-Motion>', self._drag_move)
 
-        # Logo badge
-        logo = tk.Frame(hdr, bg=C_GREEN_LOG, width=28, height=28)
-        logo.place(x=12, y=9)
+        # Logo badge 32×32px (#00A878, r-8 aproximado con padding)
+        logo = tk.Frame(hdr, bg=C_GREEN_LOG, width=32, height=32)
+        logo.place(x=12, y=7)
         logo.pack_propagate(False)
         lbl = tk.Label(logo, text='CFO', bg=C_GREEN_LOG, fg=C_WHITE,
-                       font=('Segoe UI', 7, 'bold'))
+                       font=('Segoe UI', 8, 'bold'))
         lbl.place(relx=.5, rely=.5, anchor='center')
         for w in (logo, lbl):
             w.bind('<Button-1>',  self._drag_start)
@@ -165,20 +165,20 @@ class LauncherUI:
 
         # Brand
         brand = tk.Frame(hdr, bg=C_HEADER)
-        brand.place(x=48, y=6)
+        brand.place(x=52, y=5)
         brand.bind('<Button-1>',  self._drag_start)
         brand.bind('<B1-Motion>', self._drag_move)
         tk.Label(brand, text='CFOTech', bg=C_HEADER, fg=C_WHITE,
-                 font=('Segoe UI', 11, 'bold')).pack(side='left')
+                 font=('Segoe UI', 13, 'bold')).pack(side='left')
         tk.Label(brand, text='  IT Tools', bg=C_HEADER, fg=C_ACCENT,
-                 font=('Segoe UI', 10, 'bold')).pack(side='left')
+                 font=('Segoe UI', 11, 'bold')).pack(side='left')
         sub = tk.Label(hdr, text='Portal de Acceso', bg=C_HEADER,
                        fg=C_MUTED, font=('Segoe UI', 7))
-        sub.place(x=49, y=28)
+        sub.place(x=53, y=28)
         sub.bind('<Button-1>',  self._drag_start)
         sub.bind('<B1-Motion>', self._drag_move)
 
-        # Botón cerrar
+        # Botón cerrar — reposicionado para ancho 340
         close = tk.Label(hdr, text='✕', bg=C_HEADER, fg=C_MUTED,
                          font=('Segoe UI', 12), cursor='hand2')
         close.place(x=self.W - 28, y=14)
