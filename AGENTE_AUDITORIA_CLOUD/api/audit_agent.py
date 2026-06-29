@@ -72,11 +72,22 @@ def _extract_domain(url: str) -> str:
 
 
 def _parse_brechas(md_text: str) -> dict:
-    """Cuenta brechas por severidad desde el markdown generado."""
-    alta  = len(re.findall(r'\|\s*Alta\s*\|',  md_text, re.IGNORECASE))
-    media = len(re.findall(r'\|\s*Media\s*\|', md_text, re.IGNORECASE))
-    baja  = len(re.findall(r'\|\s*Baja\s*\|',  md_text, re.IGNORECASE))
-    return {'alta': alta, 'media': media, 'baja': baja}
+    """Cuenta brechas por severidad desde la columna Severidad de las tablas markdown.
+
+    Recorre las filas de tabla (contienen `|`) y cuenta las celdas cuyo contenido,
+    una vez quitado el emphasis markdown (`*`, `_`) y los espacios, es exactamente
+    'Alta' / 'Media' / 'Baja'. Así se ignoran menciones en prosa y se toleran
+    severidades en negrita (`| **Alta** |`), que es como las formatea el modelo.
+    """
+    counts = {'alta': 0, 'media': 0, 'baja': 0}
+    for line in md_text.splitlines():
+        if '|' not in line:
+            continue
+        for cell in line.split('|'):
+            token = cell.strip().strip('*_ ').strip().lower()
+            if token in counts:
+                counts[token] += 1
+    return counts
 
 
 def _redact_pat(text: str, pat: str | None) -> str:

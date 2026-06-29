@@ -1,4 +1,10 @@
 # AGENTE_AUDITORIA_CLOUD/api/function_app.py
+# Usar el almacén de certificados del SO (Windows/Linux) en vez del bundle de certifi.
+# Necesario detrás de proxies de inspección SSL corporativos (Zscaler, etc.):
+# el root CA corporativo está en el almacén del SO, no en certifi. Inocuo en Azure.
+import truststore
+truststore.inject_into_ssl()
+
 import azure.functions as func
 import json
 import logging
@@ -48,7 +54,7 @@ async def audit_endpoint(req: func.HttpRequest) -> func.HttpResponse:
                 'normativas': normativas,
             }
         else:
-            request_data = req.get_json(force=True)
+            request_data = req.get_json()
 
         # Ejecutar auditoría
         result = await run_audit_agent(request_data)

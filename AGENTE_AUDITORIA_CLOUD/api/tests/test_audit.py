@@ -27,11 +27,26 @@ class TestParseBrechas:
 | Brecha 4 | Baja | ... |
 """
         result = _parse_brechas(md)
-        assert result['alta'] >= 0
-        assert result['media'] >= 0
-        assert result['baja'] >= 0
-        # Solo validamos que devuelve la estructura correcta
-        assert 'alta' in result and 'media' in result and 'baja' in result
+        assert result == {'alta': 2, 'media': 1, 'baja': 1}
+
+    def test_cuenta_severidades_en_negrita_markdown(self):
+        # El modelo suele formatear la severidad en negrita: | **Alta** |
+        md = """
+| # | Brecha | Normativa | Severidad | Archivo |
+|---|--------|-----------|-----------|---------|
+| 1 | Skip link ausente | WCAG 2.4.1 | **Alta** | index.html |
+| 2 | Menú sin teclado | WCAG 2.1.1 | **Alta** | header.html |
+| 3 | Contraste bajo | WCAG 1.4.3 | **Media** | style.css |
+| 4 | Sin landmark | WCAG 4.1.2 | **Baja** | footer.html |
+"""
+        result = _parse_brechas(md)
+        assert result == {'alta': 2, 'media': 1, 'baja': 1}
+
+    def test_no_cuenta_severidad_mencionada_en_prosa(self):
+        # "Alta" dentro de una descripción no debe contar como brecha
+        md = "El riesgo es de prioridad Alta segun el equipo, pero no hay tabla."
+        result = _parse_brechas(md)
+        assert result == {'alta': 0, 'media': 0, 'baja': 0}
 
 class TestRunAuditAgent:
     @pytest.mark.asyncio
